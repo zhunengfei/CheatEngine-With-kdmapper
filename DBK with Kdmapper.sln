@@ -5,9 +5,9 @@ VisualStudioVersion = 17.13.35828.75
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Test_R3_Comminity", "Test_CE_COTROL_COCE_R3\Emptey.vcxproj", "{219DD145-5B3C-67E2-7764-6076608B6DA7}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DBK with Kdmapper", "DBK_Tiny\DBK with Kdmapper.vcxproj", "{B247177F-302E-41D2-B52F-A0CCC5C46EFC}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CheatEngine_With_Qt", "CheatEngine_With_Qt\CheatEngine_With_Qt.vcxproj", "{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DBK_Tiny", "DBK_Tiny\DBK_Tiny.vcxproj", "{B247177F-302E-41D2-B52F-A0CCC5C46EFC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -28,6 +28,14 @@ Global
 		{219DD145-5B3C-67E2-7764-6076608B6DA7}.Release|x64.ActiveCfg = Release|x64
 		{219DD145-5B3C-67E2-7764-6076608B6DA7}.Release|x64.Build.0 = Release|x64
 		{219DD145-5B3C-67E2-7764-6076608B6DA7}.Release|x64.Deploy.0 = Release|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|ARM64.ActiveCfg = Debug|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|ARM64.Build.0 = Debug|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|x64.ActiveCfg = Debug|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|x64.Build.0 = Debug|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|ARM64.ActiveCfg = Release|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|ARM64.Build.0 = Release|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|x64.ActiveCfg = Release|x64
+		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|x64.Build.0 = Release|x64
 		{B247177F-302E-41D2-B52F-A0CCC5C46EFC}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{B247177F-302E-41D2-B52F-A0CCC5C46EFC}.Debug|ARM64.Build.0 = Debug|ARM64
 		{B247177F-302E-41D2-B52F-A0CCC5C46EFC}.Debug|ARM64.Deploy.0 = Debug|ARM64
@@ -40,14 +48,6 @@ Global
 		{B247177F-302E-41D2-B52F-A0CCC5C46EFC}.Release|x64.ActiveCfg = Release|x64
 		{B247177F-302E-41D2-B52F-A0CCC5C46EFC}.Release|x64.Build.0 = Release|x64
 		{B247177F-302E-41D2-B52F-A0CCC5C46EFC}.Release|x64.Deploy.0 = Release|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|ARM64.ActiveCfg = Debug|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|ARM64.Build.0 = Debug|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|x64.ActiveCfg = Debug|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Debug|x64.Build.0 = Debug|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|ARM64.ActiveCfg = Release|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|ARM64.Build.0 = Release|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|x64.ActiveCfg = Release|x64
-		{1E5FD2ED-8800-4CFD-B2F4-EE4305F6CF39}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
