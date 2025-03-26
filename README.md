@@ -1,7 +1,11 @@
 # Cheat-Engine-with-kdmapper
-1、Attempt to rewrite the Cheat Engine Windows framework using Qt
+1、Attempt to rewrite the Cheat Engine Windows framework using Qt,may its a big project that take a long time to finish
 
-2、DBK Driver incremental development based on kdmapper
+2、DBK Driver incremental development based on kdmapper(finish)
+
+
+
+Chinese commemt:
 
 1、本项目基于两个著名黑客项目增量开发 通过kdmapper手动映射DBK驱动，并重构DBK原DeviceIoControl方法与Cheat Engine的通讯机制，绕过微软签名
 
