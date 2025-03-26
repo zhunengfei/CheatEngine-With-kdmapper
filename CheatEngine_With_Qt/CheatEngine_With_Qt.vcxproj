@@ -97,8 +97,31 @@
     <QtRcc Include="CheatEngine_With_Qt.qrc" />
     <QtUic Include="CheatEngine_With_Qt.ui" />
     <QtMoc Include="CheatEngine_With_Qt.h" />
+    <ClCompile Include="Cheat Engine Core\NewKernelHandler.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Cheat Engine Core\WindowsDebugger.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="CheatEngine_With_Qt.cpp" />
     <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Cheat Engine Core\dbk32\dbk32functions.h" />
+    <ClInclude Include="Cheat Engine Core\dbk32\vmxfunction.h" />
+    <ClInclude Include="Cheat Engine Core\debug.h" />
+    <ClInclude Include="Cheat Engine Core\DebuggerInterface.h" />
+    <ClInclude Include="Cheat Engine Core\Filehandler.h" />
+    <ClInclude Include="Cheat Engine Core\frmEditHistoryUnit.h" />
+    <ClInclude Include="Cheat Engine Core\Globals.h" />
+    <ClInclude Include="Cheat Engine Core\NewKernelHandler.h" />
+    <ClInclude Include="Cheat Engine Core\plugin.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\Winapi.hpp" />
+    <ClInclude Include="Cheat Engine Core\WindowsDebugger.hpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClInclude>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

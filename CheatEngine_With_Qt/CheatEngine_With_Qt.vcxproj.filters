@@ -21,6 +21,15 @@
       <UniqueIdentifier>{639EADAA-A684-42e4-A9AD-28FC9BCB8F7C}</UniqueIdentifier>
       <Extensions>ts</Extensions>
     </Filter>
+    <Filter Include="Source Files\CheatEngine_Source">
+      <UniqueIdentifier>{913d24d2-415e-41e7-a619-89477ec7725b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\CheatEngine_include">
+      <UniqueIdentifier>{eff28a46-f61a-455b-af73-025f04cab725}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dbk32">
+      <UniqueIdentifier>{6bb43249-ff81-4283-851e-e47323255421}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtRcc Include="CheatEngine_With_Qt.qrc">
@@ -40,5 +49,46 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Cheat Engine Core\WindowsDebugger.cpp">
+      <Filter>Source Files\CheatEngine_Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Cheat Engine Core\NewKernelHandler.cpp">
+      <Filter>Source Files\CheatEngine_Source</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Cheat Engine Core\dbk32\dbk32functions.h">
+      <Filter>Header Files\dbk32</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\dbk32\vmxfunction.h">
+      <Filter>Header Files\dbk32</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\debug.h">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\DebuggerInterface.h">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\Filehandler.h">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\frmEditHistoryUnit.h">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\Globals.h">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\NewKernelHandler.h">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\plugin.h">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\Winapi.hpp">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
+    <ClInclude Include="Cheat Engine Core\WindowsDebugger.hpp">
+      <Filter>Header Files\CheatEngine_include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

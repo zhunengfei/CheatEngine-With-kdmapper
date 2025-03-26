@@ -9,7 +9,7 @@
 #include "plugin.h"
 #include "Filehandler.h"
 #include "debug.h"
-#include "dbk32functions.h"
+#include "dbk32/dbk32functions.h"
 
 
 using QWORD = uintptr_t;
