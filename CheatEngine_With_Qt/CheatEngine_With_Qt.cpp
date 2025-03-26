@@ -1,0 +1,272 @@
+#include "CheatEngine_With_Qt.h"
+#include <QTableWidget>
+#include <QStandardItemModel>
+
+CheatEngine_With_Qt::CheatEngine_With_Qt(QWidget* parent)
+	: QMainWindow(parent)
+	, ui(new Ui::CheatEngine_With_QtClass())
+{
+	ui->setupUi(this);
+
+	initCheckBoxVisibility(false);
+	initoriginCombox_Value_Type();
+	initTableWidgetButton();
+	initFindWidget(ui->tabWidget->widget(0));
+	//ui->tabWidget->layout()
+
+
+	ValueInput2_enable(false);
+
+	connect(ui->checkBox_5_percent, &QCheckBox::toggled, [&](bool checked) {ValueInput2_enable(true);});
+
+	connect(ui->comboBox_atribute_For_Find, &QComboBox::currentTextChanged, [&](const QString& text) {
+
+		initCheckBoxVisibility(false);
+		if (text == "介于两者之间的值")
+		{
+			SetLayoutVisibility(ui->FindText, true);
+		}
+		else if (text == "未知的初始值")
+		{
+			SetLayoutVisibility(ui->FindText, false);
+			EnableCheckBox(ui->checkBox_Not, false);
+			EnableCheckBox(ui->checkBox_6_Only_Simple_Value, false);
+
+		}
+		else if (text == "对比刚刚扫的增加的值" || text == "对比刚扫的减小的值" || text == "变了的值" || text == "没变的值")
+		{
+			SetLayoutVisibility(ui->FindText, false);
+			//initCheckBoxVisibility(false);
+			EnableCheckBox(ui->checkBox_Not, false);
+			if (text == "没变的值") EnableCheckBox(ui->checkBox_repeat, true);
+		}
+
+
+		else {
+			SetLayoutVisibility(ui->FindText, true);
+			ValueInput2_enable(false);
+
+			//initCheckBoxVisibility(false);
+
+		}});
+
+
+		//设置 comboBox_Value_Type 信号槽
+		connect(ui->comboBox_Value_Data_Size, &QComboBox::currentTextChanged, [&](const QString& text) {
+			//resetComboBox(ui->comboBox_atribute_For_Find);
+			//initoriginCombox(ui->comboBox_atribute_For_Find);
+
+			initCheckBoxVisibility(false);
+			resetComboBox(ui->comboBox_atribute_For_Find);
+
+			if (text == QString("字符串"))
+			{
+				ui->comboBox_atribute_For_Find->clear();
+
+				QStringList filteredOptions = { "搜索字符串" };
+				ui->comboBox_atribute_For_Find->addItems(filteredOptions);
+
+
+
+				EnableCheckBox(ui->checkBox_Not, false);
+				EnableCheckBox(ui->checkBox_3_Caps_Check, true);
+				EnableCheckBox(ui->checkBox_4_use_UTF16, true);
+				EnableCheckBox(ui->checkBox_2_Include_Code_Section, true);
+
+			}
+			else if (text == "4字节")
+			{
+				ui->comboBox_atribute_For_Find->addItems(next_Find_Value_For_Find);
+			}
+			else if (text == "单浮点" || text == "双浮点") EnableCheckBox(ui->checkBox_6_Only_Simple_Value, true);
+
+			});
+
+
+
+}
+
+
+
+
+
+
+
+void CheatEngine_With_Qt::initoriginCombox(QComboBox* changedComboBox)
+{
+	for (int i = 0;i < changedComboBox->count();i++)
+	{
+		originalOptions << changedComboBox->itemText(i);
+	}
+
+}
+
+void CheatEngine_With_Qt::initoriginCombox_Value_Type()
+{
+	initoriginCombox(ui->comboBox_atribute_For_Find);
+}
+
+void CheatEngine_With_Qt::initTableWidgetButton()
+{
+
+	connect(ui->pushButton_5_add_newTable, &QPushButton::clicked,
+		[&]()
+		{
+			QWidget* newWidget = new QWidget();
+			initFindWidget(newWidget);
+
+
+			int addNumber = ui->tabWidget->count();
+			ui->tabWidget->addTab(newWidget, QString("查找 ")+ QString::number(addNumber+1));
+			ui->tabWidget->setCurrentIndex(addNumber);
+		});
+
+	connect(ui->pushButton_5_remove_Table_Widget, &QPushButton::clicked, 
+		[&]()
+		{
+			int index = ui->tabWidget->count()-1;
+			if (index > 0)
+			{
+				//ui->tabWidget->setCurrentIndex(index-1);
+				ui->tabWidget->removeTab(index);
+			}
+
+		});
+
+
+}
+
+void CheatEngine_With_Qt::initFindWidget(QWidget* widget)
+{
+	//这里初始化新查找表
+	QVBoxLayout* layout = new QVBoxLayout(widget);
+
+
+	QTableView* newTableView = new QTableView(widget);
+
+
+	QStandardItemModel* model = new QStandardItemModel(0, 4, this);
+	QStringList headers;
+	headers << "地址" << "当前值" << "先前值" << "第一次查找的值";
+	model->setHorizontalHeaderLabels(headers);
+	newTableView->setModel(model);
+
+	// 禁止编辑单元格 
+	newTableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+	// 选择整行 
+	newTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
+
+	// 设置列宽自适应 
+	//newTableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+	//test add dummy data
+	QStandardItem* addrItem1 = new QStandardItem("0x12343252636262325");
+	QStandardItem* currentValueItem1 = new QStandardItem("50");
+	QStandardItem* previousValueItem1 = new QStandardItem("45");
+	QStandardItem* firstLookupItem1 = new QStandardItem("40");
+	model->setItem(0, 0, addrItem1);
+	model->setItem(0, 1, currentValueItem1);
+	model->setItem(0, 2, previousValueItem1);
+	model->setItem(0, 3, firstLookupItem1);
+
+
+
+
+	QStandardItem* addrItem2 = new QStandardItem("0xzuoyuan425522");
+	QStandardItem* currentValueItem2 = new QStandardItem("50");
+	QStandardItem* previousValueItem2 = new QStandardItem("45");
+	QStandardItem* firstLookupItem2 = new QStandardItem("40");
+	model->setItem(2, 0, addrItem2);
+	model->setItem(2, 1, currentValueItem2);
+	model->setItem(2, 2, previousValueItem2);
+	model->setItem(2, 3, firstLookupItem2);
+
+
+
+	QLabel* newLabel = new QLabel("结果数 0", widget);
+	layout->addWidget(newLabel);
+
+	newTableView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+	layout->addWidget(newTableView,1);
+
+}
+
+
+
+
+void CheatEngine_With_Qt::resetComboBox(QComboBox* changedComboBox)
+{
+	changedComboBox->clear();
+	changedComboBox->addItems(original_Value_For_Find);
+}
+
+void CheatEngine_With_Qt::EnableCheckBox(QCheckBox* checkbox, bool enable)
+{
+	checkbox->setEnabled(enable);
+	checkbox->setVisible(enable);
+
+}
+
+void CheatEngine_With_Qt::ValueInput2_enable(bool isenable)
+{
+	ui->ValueInput2->setVisible(isenable);
+	ui->label_2->setVisible(isenable);
+	ui->ValueInput2->setEnabled(isenable);
+	ui->label_2->setEnabled(isenable);
+}
+
+
+void CheatEngine_With_Qt::initCheckBoxVisibility(bool enable)
+{
+	// 1. 获取目标布局指针（假设布局对象名为verticalLayout）
+	QLayout* targetLayout = ui->FindMethodSelect;
+
+	// 2. 遍历布局中的全部子项
+	for (int i = 0; i < targetLayout->count(); ++i)
+	{
+		QLayoutItem* item = targetLayout->itemAt(i);
+		if (item->widget())
+		{
+			// 3. 判断是否为QCheckBox类型
+			QCheckBox* checkbox = qobject_cast<QCheckBox*>(item->widget());
+			if (checkbox)
+			{
+				// 4. 设置为不可见
+				checkbox->setVisible(enable);
+				checkbox->setEnabled(enable);
+			}
+		}
+	}
+	EnableCheckBox(ui->checkBox_Not, true);
+
+	QString text = ui->comboBox_Value_Data_Size->currentText();
+	if (text == "单浮点" || text == "双浮点") EnableCheckBox(ui->checkBox_6_Only_Simple_Value, true);
+
+}
+
+
+void CheatEngine_With_Qt::SetLayoutVisibility(QLayout* targetLayout, bool enable)
+{
+	for (int i = 0; i < targetLayout->count(); ++i)
+	{
+		QWidget* widget = targetLayout->itemAt(i)->widget();
+		if (widget)
+		{
+			widget->setVisible(enable);
+			widget->setEnabled(enable);
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+CheatEngine_With_Qt::~CheatEngine_With_Qt()
+{
+}
