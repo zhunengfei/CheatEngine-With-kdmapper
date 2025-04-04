@@ -44,64 +44,28 @@ BOOLEAN MyDeviceIoControl(
 	{
 		IRP FakeIRP;
 		PCommInfo buffer = { 0 };
-		buffer = ExAllocatePool(NonPagedPool, max(InputBufferLength, OutputBufferLength));
-		buffer->inputBuffer = ExAllocatePool(NonPagedPool, max(InputBufferLength, OutputBufferLength));
-
-
-
-		//__debugbreak();
-		//__debugbreak();
-
-		//尝试第二种思路获取三环数据
-		//CommInfo R3_data = {0};
-		//memcpy(&(R3_data.ControlCode), InputBuffer, sizeof(UINT32));
-		//R3_data.inputBuffer = 0;
-		//memcpy(&(R3_data.inputBuffer), ((PULONG64)InputBuffer)[1],sizeof(uintptr_t));//此时R3_data.inputBuffer传入的是三环的正常io请求的inputbuff地址
-
-
-
-		
-		//PCommInfo Ring3_origin_input = InputBuffer;// 这三行是不能删除的
-		//PVOID Normal_DeviceIobuff = Ring3_origin_input->inputBuffer;//正确的
-		//PWCHAR  ring3path = ((pinputpath)Normal_DeviceIobuff)->dbvmpath;//测试读地址正确的
-
-
-		//这四行尝试把第一种思路实现
-		PCommInfo Ring3_origin_input = InputBuffer;
-		PVOID Normal_DeviceIobuff = ExAllocatePool(NonPagedPool, 0x1000);
-		memcpy(Normal_DeviceIobuff, Ring3_origin_input->inputBuffer, InputBufferLength);
-		FakeIRP.AssociatedIrp.SystemBuffer = Normal_DeviceIobuff;
-		//Normal_DeviceIobuff //申请内存
-		//	把Ring3->inputbuffer拷贝到里面//
-        //然后把Normal_device 作为irp的缓冲区 
-
-		
-		memcpy(buffer, InputBuffer, sizeof(ULONG32));
-		memcpy(buffer->inputBuffer, InputBuffer, InputBufferLength);
-		
-
-		//FakeIRP.AssociatedIrp.SystemBuffer = buffer->inputBuffer;
-		FakeIRP.Flags = buffer->ControlCode; //(ab)using an unused element 至少一个可以正确获取控制码的方法
-		
-		DbgPrintEx(0, 0, "MyDeviceIoControl %I64x\n", buffer->ControlCode);
-
-		//__debugbreak();
+		buffer = ExAllocatePool(NonPagedPool, sizeof(UINT32) + sizeof(PVOID));
+		memcpy(buffer, InputBuffer, sizeof(UINT32));
 		if (buffer->ControlCode != NULL)
 		{
-			DispatchIoctl(DeviceObject, &FakeIRP);
-		}
-		/*if (buffer->ControlCode == 0x1234567)
-		{
-			UnloadDriver(NULL);
-		}*/
+			FakeIRP.Flags = buffer->ControlCode;
 
-		memcpy(OutputBuffer, Normal_DeviceIobuff, OutputBufferLength);
-		ExFreePool(Normal_DeviceIobuff);
-		ExFreePool(buffer->inputBuffer);
+			//__debugbreak();
+            //__debugbreak();
+			buffer->inputBuffer = ExAllocatePool(NonPagedPool, max(InputBufferLength, OutputBufferLength));
+			memcpy(buffer->inputBuffer, ((PCommInfo)InputBuffer)->inputBuffer, InputBufferLength);
+			FakeIRP.AssociatedIrp.SystemBuffer = buffer->inputBuffer;
+			DbgPrintEx(0, 0, "MyDeviceIoControl %I64x\n", buffer->ControlCode);
+			DispatchIoctl(DeviceObject, &FakeIRP);
+
+			memcpy(OutputBuffer, buffer->inputBuffer, OutputBufferLength);
+			ExFreePool(buffer->inputBuffer);
+		}
 		ExFreePool(buffer);
 
+
+		return TRUE;
 	}
-	return TRUE;
 }
 
 NTSTATUS Hook_Setting_Device_FastIoDeviceControl()
