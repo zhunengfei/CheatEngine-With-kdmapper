@@ -96,6 +96,7 @@ BOOLEAN IsAddressSafe(UINT_PTR StartAddress)
 {
 #ifdef AMD64
 	//cannonical check. Bits 48 to 63 must match bit 47
+
 	UINT_PTR toppart = (StartAddress >> 47);
 	if (toppart & 1)
 	{
@@ -120,7 +121,7 @@ BOOLEAN IsAddressSafe(UINT_PTR StartAddress)
 		UINT_PTR lasterror;
 		disableInterrupts();
 		vmx_disable_dataPageFaults();
-
+		//__debugbreak();
 		x = *(volatile BYTE*)StartAddress;
 
 		vmx_enable_dataPageFaults();
@@ -364,7 +365,7 @@ BOOLEAN ReadProcessMemory(DWORD PID, PEPROCESS PEProcess, PVOID Address, DWORD S
 			int i;
 
 
-			if ((IsAddressSafe((UINT_PTR)Address)) && (IsAddressSafe((UINT_PTR)Address + Size - 1)))
+			if ((MmIsAddressValid(Address) && IsAddressSafe((UINT_PTR)Address)) && (IsAddressSafe((UINT_PTR)Address + Size - 1)))
 			{
 
 
