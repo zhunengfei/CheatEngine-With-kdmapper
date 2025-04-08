@@ -10,6 +10,7 @@
 /x64/
 .vs/
 /Cheat Engine/lib/x86_64-win64/
+/Test_CE_COTROL_COCE_R3/x64/
 /Cheat Engine/*.o
 /lazarus/
 /Cheat Engine/

@@ -266,6 +266,8 @@ Runs at passive mode
 	SkipBytes.QuadPart = 0;
 
 	DBVMMDL = MmAllocatePagesForMdlEx(LowAddress, HighAddress, SkipBytes, 4 * 1024 * 1024, MmCached, MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS | MM_ALLOCATE_FULLY_REQUIRED);
+	//__debugbreak();
+
 	if (!DBVMMDL) {
 		DbgPrintEx(0,0,"Failure allocating the required 4MB\n");
 		return;
@@ -634,7 +636,7 @@ Runs at passive mode
 
 
 					initializedvmm = TRUE;
-
+					loadedbydbvm = TRUE;
 					KeInitializeSpinLock(&LoadedOSSpinLock);
 
 				}
