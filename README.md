@@ -104,3 +104,61 @@ Window内核项目通讯心得
 2、内核调试和内核模块、理解各种地址转换、三环内存和零环内存机制，内存管理，如何重构原3环数据包，即控制码，和输入缓冲区，重构IRP通讯
 
 
+
+
+version:2026/5/3
+
+
+Qt重构初版 Cheat Engine  实现了首次扫描、下一次扫描、核心磁盘缓存、扫描引擎、内存枚举
+
+AI 辅助开发和遇到的问题链接
+
+https://chat.deepseek.com/share/dwx8by5y1aop9tcp83
+
+https://gemini.google.com/share/8460f0ffaa83
+
+https://chatgpt.com/g/g-p-69f130f821608191b7f8898d76d6cf87-cheat-engine/project
+
+
+特点
+
+
+1、海量大数据高并发线程安全、涵盖场景: 扫描、列表刷新、指针扫描，解决官方CE，首次扫描低效率线程不安全问题
+
+2、磁盘缓存，即使再多的地址条目也不会大量占用内存
+
+3、反作弊安全，规避官方版Cheat Engine 的lazarus 架构TForm、和一些pascal语言库，应用层不会出问题
+
+4、工程级别的架构，应用层对底层实现透明，可完美扩展，DBK、WIN_API、DBVM
+
+5、强大的反汇编引擎，使用成熟的库来实现反汇编，解决原版CE项目自写反汇编引擎混乱，代码可读性差问题
+
+6、集成kdmapper_dll，自动加载映射 DBK，无需官方版Cheat Engine需要各种注册表Key才能注册驱动的痛点
+
+
+项目开发环境
+
+
+Visual Studio、Qt6
+
+
+C++代码编译模式MDd、和MD (注意不要使用 MTd、MT的编译模式，会和Qt库冲突，导致异常崩溃)
+
+
+<img width="810" height="1001" alt="image" src="https://github.com/user-attachments/assets/336c3a27-58f9-4cf1-8548-50292c33aaf5" />
+<img width="802" height="996" alt="image" src="https://github.com/user-attachments/assets/5ea6c57e-bade-4a06-9d44-207f0be08690" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

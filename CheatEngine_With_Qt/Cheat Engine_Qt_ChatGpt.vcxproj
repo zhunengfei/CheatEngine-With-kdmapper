@@ -1,0 +1,117 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{7843F3B9-7DEC-4D53-8D30-47E55956CD55}</ProjectGuid>
+    <Keyword>QtVS_v304</Keyword>
+    <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">10.0</WindowsTargetPlatformVersion>
+    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt_defaults.props')">
+    <Import Project="$(QtMsBuild)\qt_defaults.props" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
+    <QtInstall>6.8.2_msvc2022_64</QtInstall>
+    <QtModules>core;gui;widgets</QtModules>
+    <QtBuildConfig>debug</QtBuildConfig>
+  </PropertyGroup>
+  <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
+    <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
+  </Target>
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(QtMsBuild)\Qt.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <IncludePath>$(ProjectDir)\Factory;$(ProjectDir)\Implement\Win_API;$(ProjectDir)\interface;$(ProjectDir)\type_define;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <PostBuildEvent>
+      <Command>"E:\Qt\6.8.2\msvc2022_64\bin\windeployqt.exe" "$(TargetPath)" --no-translations --no-system-d3d-compiler</Command>
+    </PostBuildEvent>
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
+    <ClCompile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="address_list_model.cpp" />
+    <ClCompile Include="disk_backed_result_set.cpp" />
+    <ClCompile Include="Factory\memory_accessor_factory.cpp" />
+    <ClCompile Include="Factory\memory_region_enumerator_factory.cpp" />
+    <ClCompile Include="Factory\module_enumerator_factory.cpp" />
+    <ClCompile Include="Factory\process_enumerator_factory.cpp" />
+    <ClCompile Include="Implement\Win_API\win32_memory_accessor.cpp" />
+    <ClCompile Include="Implement\Win_API\win32_memory_region_enumerator.cpp" />
+    <ClCompile Include="Implement\Win_API\win32_module_enumerator.cpp" />
+    <ClCompile Include="Implement\Win_API\win32_process_enumerator.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="process_dialog.cpp" />
+    <ClCompile Include="process_manager.cpp" />
+    <ClCompile Include="scan_engine.cpp" />
+    <ClCompile Include="scan_result_model.cpp" />
+    <QtMoc Include="MainWindow.h" />
+    <ClCompile Include="MainWindow.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="disk_backed_result_set.h" />
+    <ClInclude Include="Factory\memory_accessor_factory.h" />
+    <ClInclude Include="Factory\memory_region_enumerator_factory.h" />
+    <ClInclude Include="Factory\module_enumerator_factory.h" />
+    <ClInclude Include="Factory\process_enumerator_factory.h" />
+    <ClInclude Include="Implement\Win_API\win32_memory_accessor.h" />
+    <ClInclude Include="Implement\Win_API\win32_memory_region_enumerator.h" />
+    <ClInclude Include="Implement\Win_API\win32_module_enumerator.h" />
+    <ClInclude Include="Implement\Win_API\win32_process_enumerator.h" />
+    <ClInclude Include="interface\imemory_accessor.h" />
+    <ClInclude Include="interface\imemory_region_enumerator.h" />
+    <ClInclude Include="interface\imodule_enumerator.h" />
+    <ClInclude Include="interface\iprocess_enumerator.h" />
+    <ClInclude Include="type_define\address_item.h" />
+    <ClInclude Include="type_define\memory_region.h" />
+    <ClInclude Include="type_define\module_info.h" />
+    <ClInclude Include="type_define\process_info.h" />
+    <ClInclude Include="type_define\scan_result.h" />
+    <ClInclude Include="type_define\scan_types.h" />
+    <ClInclude Include="ui_CheatEngine_With_Qt.h" />
+    <QtMoc Include="process_dialog.h" />
+    <ClInclude Include="process_manager.h" />
+    <ClInclude Include="scan_engine.h" />
+    <ClInclude Include="thread_pool.h" />
+    <QtMoc Include="address_list_model.h" />
+    <QtMoc Include="scan_result_model.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
+    <Import Project="$(QtMsBuild)\qt.targets" />
+  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

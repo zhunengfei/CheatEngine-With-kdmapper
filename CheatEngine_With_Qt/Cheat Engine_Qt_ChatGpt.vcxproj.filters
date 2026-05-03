@@ -1,0 +1,175 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>qml;cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Form Files">
+      <UniqueIdentifier>{99349809-55BA-4b9d-BF79-8FDBB0286EB3}</UniqueIdentifier>
+      <Extensions>ui</Extensions>
+    </Filter>
+    <Filter Include="Factory">
+      <UniqueIdentifier>{5d47bd7f-35c9-40dd-a4e4-dfe89a39864d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="implement">
+      <UniqueIdentifier>{53b7cdcd-f7cd-4dbb-aa24-c7a5f626ce98}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interface">
+      <UniqueIdentifier>{b634f605-45eb-488c-b03c-b3ac192a85e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="struct_data_type">
+      <UniqueIdentifier>{34258c6d-10c4-40d6-b020-6aac6e0020c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="implement\Win_API">
+      <UniqueIdentifier>{2c090cac-fbf5-4a8b-ba7f-cf4c2786d78d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="scan_helper">
+      <UniqueIdentifier>{495c66f6-8bcc-4f39-a861-716db5d5c31f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="implement\process">
+      <UniqueIdentifier>{5a72f4dc-1832-4ac9-8bad-4b844069f3ec}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="scan_result_model.h">
+      <Filter>scan_helper</Filter>
+    </QtMoc>
+    <QtMoc Include="process_dialog.h">
+      <Filter>Form Files</Filter>
+    </QtMoc>
+    <QtMoc Include="address_list_model.h">
+      <Filter>Source Files</Filter>
+    </QtMoc>
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="MainWindow.h">
+      <Filter>Form Files</Filter>
+    </QtMoc>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="address_list_model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="process_manager.cpp">
+      <Filter>implement\process</Filter>
+    </ClCompile>
+    <ClCompile Include="disk_backed_result_set.cpp">
+      <Filter>scan_helper</Filter>
+    </ClCompile>
+    <ClCompile Include="scan_engine.cpp">
+      <Filter>scan_helper</Filter>
+    </ClCompile>
+    <ClCompile Include="scan_result_model.cpp">
+      <Filter>scan_helper</Filter>
+    </ClCompile>
+    <ClCompile Include="Factory\memory_accessor_factory.cpp">
+      <Filter>Factory</Filter>
+    </ClCompile>
+    <ClCompile Include="Factory\memory_region_enumerator_factory.cpp">
+      <Filter>Factory</Filter>
+    </ClCompile>
+    <ClCompile Include="Factory\module_enumerator_factory.cpp">
+      <Filter>Factory</Filter>
+    </ClCompile>
+    <ClCompile Include="Factory\process_enumerator_factory.cpp">
+      <Filter>Factory</Filter>
+    </ClCompile>
+    <ClCompile Include="Implement\Win_API\win32_memory_accessor.cpp">
+      <Filter>implement\Win_API</Filter>
+    </ClCompile>
+    <ClCompile Include="Implement\Win_API\win32_memory_region_enumerator.cpp">
+      <Filter>implement\Win_API</Filter>
+    </ClCompile>
+    <ClCompile Include="Implement\Win_API\win32_module_enumerator.cpp">
+      <Filter>implement\Win_API</Filter>
+    </ClCompile>
+    <ClCompile Include="Implement\Win_API\win32_process_enumerator.cpp">
+      <Filter>implement\Win_API</Filter>
+    </ClCompile>
+    <ClCompile Include="MainWindow.cpp">
+      <Filter>Form Files</Filter>
+    </ClCompile>
+    <ClCompile Include="process_dialog.cpp">
+      <Filter>Form Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="process_manager.h">
+      <Filter>implement\process</Filter>
+    </ClInclude>
+    <ClInclude Include="disk_backed_result_set.h">
+      <Filter>scan_helper</Filter>
+    </ClInclude>
+    <ClInclude Include="scan_engine.h">
+      <Filter>scan_helper</Filter>
+    </ClInclude>
+    <ClInclude Include="type_define\address_item.h">
+      <Filter>struct_data_type</Filter>
+    </ClInclude>
+    <ClInclude Include="type_define\memory_region.h">
+      <Filter>struct_data_type</Filter>
+    </ClInclude>
+    <ClInclude Include="type_define\module_info.h">
+      <Filter>struct_data_type</Filter>
+    </ClInclude>
+    <ClInclude Include="type_define\process_info.h">
+      <Filter>struct_data_type</Filter>
+    </ClInclude>
+    <ClInclude Include="type_define\scan_result.h">
+      <Filter>struct_data_type</Filter>
+    </ClInclude>
+    <ClInclude Include="type_define\scan_types.h">
+      <Filter>struct_data_type</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\imemory_accessor.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\imemory_region_enumerator.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\imodule_enumerator.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\iprocess_enumerator.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Factory\memory_accessor_factory.h">
+      <Filter>Factory</Filter>
+    </ClInclude>
+    <ClInclude Include="Factory\memory_region_enumerator_factory.h">
+      <Filter>Factory</Filter>
+    </ClInclude>
+    <ClInclude Include="Factory\module_enumerator_factory.h">
+      <Filter>Factory</Filter>
+    </ClInclude>
+    <ClInclude Include="Factory\process_enumerator_factory.h">
+      <Filter>Factory</Filter>
+    </ClInclude>
+    <ClInclude Include="Implement\Win_API\win32_memory_accessor.h">
+      <Filter>implement\Win_API</Filter>
+    </ClInclude>
+    <ClInclude Include="Implement\Win_API\win32_memory_region_enumerator.h">
+      <Filter>implement\Win_API</Filter>
+    </ClInclude>
+    <ClInclude Include="Implement\Win_API\win32_module_enumerator.h">
+      <Filter>implement\Win_API</Filter>
+    </ClInclude>
+    <ClInclude Include="Implement\Win_API\win32_process_enumerator.h">
+      <Filter>implement\Win_API</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_CheatEngine_With_Qt.h">
+      <Filter>Form Files</Filter>
+    </ClInclude>
+    <ClInclude Include="thread_pool.h">
+      <Filter>scan_helper</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
