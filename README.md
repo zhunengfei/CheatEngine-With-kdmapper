@@ -145,13 +145,44 @@ Visual Studio、Qt6
 C++代码编译模式MDd、和MD (注意不要使用 MTd、MT的编译模式，会和Qt库冲突，导致异常崩溃)
 
 
-<img width="810" height="1001" alt="image" src="https://github.com/user-attachments/assets/336c3a27-58f9-4cf1-8548-50292c33aaf5" />
-<img width="802" height="996" alt="image" src="https://github.com/user-attachments/assets/5ea6c57e-bade-4a06-9d44-207f0be08690" />
 
 
+<img width="851" height="876" alt="image" src="https://github.com/user-attachments/assets/c6c38e76-0bef-4efe-a925-7262ba8acb13" />
 
 
+扫描架构理解
 
+
+┌─────────────────────────────────────────────────────┐
+│ 上层 (MainWindow / 其他)                             │
+│                                                     │
+│  只依赖 ScanService 和 ScanResultViewModel           │
+└───────────────────────┬─────────────────────────────┘
+                        │
+                        ▼
+              ┌──────────────────┐
+              │   ScanService    │  (门面 + 线程调度)
+              │                  │
+              │ - startScan()    │
+              │ - cancel()       │
+              │ - resultModel()  │───> ScanResultViewModel
+              │ - isScanning()   │
+              └────────┬─────────┘
+                       │ 内部持有
+          ┌────────────┼────────────┐
+          │            │            │
+          ▼            ▼            ▼
+   ┌─────────────┐ ┌──────────────────┐ ┌─────────────────────┐
+   │ ScanEngine  │ │ScanResultRepository│ │ ScanResultViewModel │
+   │             │ │                  │ │                     │
+   │ 纯计算      │ │ 线程安全存储     │ │ QAbstractTableModel │
+   │ 返回结果    │ │ 快照、增量更新   │ │ 格式化显示          │
+   └─────────────┘ └──────────────────┘ └─────────────────────┘
+          │
+          ▼ (仅使用)
+   ┌─────────────┐
+   │ MemoryReader │  (读取进程内存，静态工具)
+   └─────────────┘
 
 
 
