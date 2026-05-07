@@ -28,8 +28,11 @@ MainWindow::MainWindow(QWidget* parent)
     initServices();
     initViews();
     initTimers();
+    initDataTypeComboBox();
     connectSignals();
-    applyDefaultState();
+
+    updateScanTypeComboBox();
+    refreshUiControls();
 }
 
 MainWindow::~MainWindow() = default;
@@ -44,18 +47,12 @@ void MainWindow::initServices()
     addressModel = new AddressListModel(this);
 }
 
-// 辅助函数：解析数值（支持十六进制）
-uint64_t MainWindow::resolveValueInput(const QString& text, bool isHex) const {
-    bool ok;
-    return isHex ? text.toULongLong(&ok, 16) : text.toULongLong(&ok, 10);
-}
-
-
 void MainWindow::initViews()
 {
     setupScanResultView();
     replaceAddressTable();
     ui->progressBar->setVisible(false);
+    ui->checkBox_Only_Simple_Value->setToolTip(tr("仅扫描看起来是普通数值的地址，排除指针、代码、加密数据等复杂值"));
 }
 
 void MainWindow::updateCountLabels()
@@ -128,6 +125,87 @@ void MainWindow::initTimers()
     healthTimer->start(1000);
 }
 
+
+
+uint64_t MainWindow::resolveValue(const QString& text, ScanDataType dataType) const {
+    bool ok = false;
+    QString trimmedText = text.trimmed();
+    if (trimmedText.isEmpty()) return 0;
+
+    // 1. 处理浮点数类型
+    if (isFloatingPoint(dataType)) {
+        double dVal = trimmedText.toDouble(&ok);
+        if (!ok) return 0;
+
+        uint64_t result = 0;
+        if (dataType == ScanDataType::Float32) {
+            float fVal = static_cast<float>(dVal);
+            // 将 float 的位模式拷贝到 result 的低 32 位
+            std::memcpy(&result, &fVal, sizeof(float));
+        }
+        else {
+            // 将 double 的位模式拷贝到 result
+            std::memcpy(&result, &dVal, sizeof(double));
+        }
+        return result;
+    }
+
+    // 2. 处理整数类型 (Bit, Int8, Int16, Int32, Int64)
+    bool isHex = ui->checkBox_Hex_Value->isChecked();
+
+    // CE 习惯：如果输入以 0x 开头，强制按十六进制解析，无视 CheckBox
+    int base = 10;
+    if (trimmedText.startsWith("0x", Qt::CaseInsensitive)) {
+        base = 16;
+    }
+    else {
+        base = isHex ? 16 : 10;
+    }
+
+    uint64_t iVal = trimmedText.toULongLong(&ok, base);
+
+    // 3. 溢出与位宽截断 (模仿 CE 的数据类型溢出处理)
+    if (!ok) return 0;
+
+    switch (dataType) {
+    case ScanDataType::Int8:  return static_cast<uint8_t>(iVal);
+    case ScanDataType::Int16: return static_cast<uint16_t>(iVal);
+    case ScanDataType::Int32: return static_cast<uint32_t>(iVal);
+    case ScanDataType::Bit:   return iVal & 0x1; // 仅取最低位
+    default:                  return iVal;       // Int64 或其他
+    }
+}
+
+ScanParams MainWindow::parseCurrentParams(ScanDataType dataType, int scanTypeInt, bool isNextScan) const {
+    // 1. 确定当前是否需要输入框，需要几个
+    int neededInputs = 0;
+    if (isNextScan) {
+        NextScanType nt = static_cast<NextScanType>(scanTypeInt);
+        if (nt == NextScanType::Equal || nt == NextScanType::IncreasedBy || nt == NextScanType::DecreasedBy) neededInputs = 1;
+        else if (nt == NextScanType::Between) neededInputs = 2;
+    }
+    else {
+        ScanType st = static_cast<ScanType>(scanTypeInt);
+        if (st == ScanType::Between) neededInputs = 2;
+        else if (st != ScanType::UnknownInitial) neededInputs = 1;
+    }
+
+    // 2. 根据数据类型分发解析
+    if (isStringType(dataType)) return parseStringParams();
+    if (dataType == ScanDataType::ByteArray) return parseAobParams();
+
+    // 3. 统一数值解析 (处理 Hex, Float, Integer)
+    ValueParams vp;
+    if (neededInputs >= 1) {
+        vp.value1 = resolveValue(ui->lineEdit_ValueInput->text(), dataType);
+    }
+    if (neededInputs == 2) {
+        vp.value2 = resolveValue(ui->lineEdit_ValueInput2->text(), dataType);
+    }
+    return vp;
+}
+
+
 // ==================== 信号连接 ====================
 void MainWindow::connectSignals()
 {
@@ -140,6 +218,7 @@ void MainWindow::connectSignals()
 
     connect(m_scanService, &ScanService::scanCompleted,
         this, &MainWindow::onScanCompleted);
+
     connect(m_scanService, &ScanService::progressChanged,
         this, &MainWindow::onProgressChanged);
 
@@ -151,70 +230,27 @@ void MainWindow::connectSignals()
         });
 
     connect(ui->comboBox_atribute_For_Find, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &MainWindow::updateScanTypeUi);
-    updateScanTypeUi(ui->comboBox_atribute_For_Find->currentIndex());
+        this, &MainWindow::refreshUiControls);
+
+    connect(ui->comboBox_Value_Data_Size, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &MainWindow::updateScanTypeComboBox);
+
+    connect(ui->checkBox_use_UTF8, &QCheckBox::clicked, this, [this](bool checked) {
+        if (checked) ui->checkBox_use_UTF16->setChecked(false);
+        refreshUiControls(); // 状态变更后刷新 UI
+        });
+
+    connect(ui->checkBox_use_UTF16, &QCheckBox::clicked, this, [this](bool checked) {
+        if (checked) ui->checkBox_use_UTF8->setChecked(false);
+        refreshUiControls(); // 状态变更后刷新 UI
+        });
+    connect(ui->checkBox_fast_scan, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
+    connect(ui->checkBox_percent, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
+    connect(ui->checkBox_repeat, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
+    connect(ui->checkBox_Only_Simple_Value, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
+
 }
 
-// ==================== UI 状态管理 ====================
-void MainWindow::updateScanTypeUi(int index)
-{
-    if (index < 0) return;
-
-    // 定义需要显示的控件状态
-    bool showInput1 = true;
-    bool showInput2 = false;
-    bool showHex = true;
-
-    if (m_isFirstScan) {
-        // 首次扫描阶段的索引逻辑: 0:精确, 1:大于, 2:小于, 3:介于两者, 4:未知
-        switch (index) {
-        case 3: // 介于两者之间 (Between)
-            showInput1 = true;
-            showInput2 = true;
-            break;
-        case 4: // 未知初始值 (Unknown)
-            showInput1 = false;
-            showHex = false;
-            break;
-        default: // 精确/大于/小于
-            showInput1 = true;
-            showInput2 = false;
-            break;
-        }
-    }
-    else {
-        // 再次扫描阶段的索引逻辑 (对应 onScanCompleted 中 addItems 的顺序)
-        // {"精确数值", "增加的值", "减少的值", "变动的值", "未变动的值", "介于两者之间"}
-        switch (index) {
-        case 0: // 精确数值
-            showInput1 = true;
-            showInput2 = false;
-            break;
-        case 5: // 介于两者之间 (根据你 addItems 的顺序，这是第6项)
-            showInput1 = true;
-            showInput2 = true;
-            break;
-        default: // 增加/减少/变动/未变动
-            showInput1 = false;
-            showInput2 = false;
-            showHex = false;
-            break;
-        }
-    }
-
-    // 应用可见性
-    ui->lineEdit_ValueInput->setVisible(showInput1);
-    ui->checkBox_Hex_Value->setVisible(showInput1 && showHex);
-
-    ui->label_and->setVisible(showInput2);
-    ui->lineEdit_ValueInput2->setVisible(showInput2);
-}
-
-void MainWindow::applyDefaultState()
-{
-    ui->pushButton_new_find->setEnabled(false);
-    ui->pushButton_next_find->setEnabled(false);
-}
 
 // ==================== 打开进程 ====================
 void MainWindow::onOpenProcess()
@@ -234,12 +270,15 @@ void MainWindow::onOpenProcess()
         m_attachedToProcess = true;
         m_isFirstScan = true;
 
+
+
         ui->label_Process_name->setText(QString::fromStdString(p.name));
         setWindowTitle(QString("Cheat Engine - %1").arg(QString::fromStdString(p.name)));
 
         QComboBox* moduleBox = ui->comboBox_process_module_List;
 
         // UI 还原
+        ui->comboBox_Value_Data_Size->setEnabled(true);
         ui->pushButton_new_find->setText("首次扫描");
         ui->pushButton_new_find->setEnabled(true);
         ui->pushButton_next_find->setEnabled(false);
@@ -249,31 +288,58 @@ void MainWindow::onOpenProcess()
         const auto& modules = ProcessManager::instance().modules();
         for (const auto& mod : modules)
             moduleBox->addItem(QString::fromStdString(mod.name));
-
-        ui->pushButton_new_find->setEnabled(true);
-        ui->pushButton_next_find->setEnabled(false);
     }
     else {
         QMessageBox::warning(this, "Error", "Failed to attach to process.");
     }
+
+    refreshUiControls();
 }
 
 // ==================== 构建扫描请求（保留原解析逻辑） ====================
+// mainwindow.cpp
+
+void MainWindow::initDataTypeComboBox()
+{
+    ui->comboBox_Value_Data_Size->clear();
+
+    // 使用 QVariant 绑定枚举值到每一个条目
+    ui->comboBox_Value_Data_Size->addItem("Binary (Bit)", (int)ScanDataType::Bit);
+    ui->comboBox_Value_Data_Size->addItem("1 Byte", (int)ScanDataType::Int8);
+    ui->comboBox_Value_Data_Size->addItem("2 Bytes", (int)ScanDataType::Int16);
+    ui->comboBox_Value_Data_Size->addItem("4 Bytes", (int)ScanDataType::Int32);
+    ui->comboBox_Value_Data_Size->addItem("8 Bytes", (int)ScanDataType::Int64);
+    ui->comboBox_Value_Data_Size->addItem("Float", (int)ScanDataType::Float32);
+    ui->comboBox_Value_Data_Size->addItem("Double", (int)ScanDataType::Float64);
+    ui->comboBox_Value_Data_Size->addItem("String", (int)ScanDataType::AsciiString);
+    ui->comboBox_Value_Data_Size->addItem("Array of Byte", (int)ScanDataType::ByteArray);
+    ui->comboBox_Value_Data_Size->addItem("All (Integer/Float)", (int)ScanDataType::All);
+    ui->comboBox_Value_Data_Size->addItem("Structure", (int)ScanDataType::Structure);
+
+    // 默认选中 4 字节
+    ui->comboBox_Value_Data_Size->setCurrentIndex(3);
+}
+
 ScanDataType MainWindow::parseDataTypeFromUI() const
 {
-    int idx = ui->comboBox_Value_Data_Size->currentIndex();
-    switch (idx) {
-    case 0: return ScanDataType::Int8;
-    case 1: return ScanDataType::Int16;
-    case 2: return ScanDataType::Int32;
-    case 3: return ScanDataType::Int64;
-    case 4: return ScanDataType::Float32;
-    case 5: return ScanDataType::Float64;
-    case 6: return ui->checkBox_use_UTF16->isChecked() ? ScanDataType::Utf16String : ScanDataType::AsciiString;
-    case 7: return ScanDataType::ByteArray;
-    default: return ScanDataType::Int64;
+    // 获取 ComboBox 当前条目绑定的枚举数据
+    QVariant data = ui->comboBox_Value_Data_Size->currentData();
+    if (!data.isValid()) return ScanDataType::Int32; // 默认值
+
+    ScanDataType type = static_cast<ScanDataType>(data.toInt());
+
+    if (type == ScanDataType::AsciiString) {
+        if (ui->checkBox_use_UTF16->isChecked()) {
+            return ScanDataType::Utf16String;
+        }
+         if (ui->checkBox_use_UTF8->isChecked()) return ScanDataType::Utf8String;
+
+        return ScanDataType::AsciiString;
     }
+
+    return type;
 }
+
 
 ValueParams MainWindow::parseValueParams(ScanType type, ScanDataType dataType) const
 {
@@ -327,11 +393,19 @@ StringParams MainWindow::parseStringParams() const
     StringParams sp;
     sp.caseSensitive = ui->checkBox_Caps_Check->isChecked();
     QString text = ui->lineEdit_ValueInput->text();
-    if (parseDataTypeFromUI() == ScanDataType::Utf16String) {
-        auto utf16 = text.utf16();
-        sp.text.assign(reinterpret_cast<const char*>(utf16), text.size() * 2);
+    ScanDataType type = parseDataTypeFromUI();
+
+    if (type == ScanDataType::Utf16String) {
+        // UTF-16: 提取原始 2 字节数据
+        auto utf16Data = text.utf16();
+        sp.text.assign(reinterpret_cast<const char*>(utf16Data), text.size() * 2);
+    }
+    else if (type == ScanDataType::Utf8String) {
+        // UTF-8: 提取 UTF-8 编码的字节流
+        sp.text = text.toUtf8().toStdString();
     }
     else {
+        // Ascii (ANSI): 按照本地 8 位编码提取
         sp.text = text.toStdString();
     }
     return sp;
@@ -358,163 +432,25 @@ AobParams MainWindow::parseAobParams() const
     return ap;
 }
 
-ScanRequest MainWindow::buildFirstScanRequest() const
-{
-    ScanRequest req;
-    req.mode = ScanMode::First;
-    req.dataType = parseDataTypeFromUI();
-
-    // 1. 映射扫描类型 (First Scan 专属)
-    // 对应 UI comboBox_atribute_For_Find: 0:精确数值, 1:值大于, 2:值小于, 3:介于两者, 4:未知初始值
-    int scanTypeIdx = ui->comboBox_atribute_For_Find->currentIndex();
-    static const ScanType firstTypeMap[] = {
-        ScanType::ExactValue,   // 0
-        ScanType::GreaterThan,  // 1
-        ScanType::LessThan,     // 2
-        ScanType::Between,       // 3
-        ScanType::UnknownInitial // 4
-    };
-    req.firstType = (scanTypeIdx >= 0 && scanTypeIdx <= 4) ? firstTypeMap[scanTypeIdx] : ScanType::ExactValue;
-
-    // 2. 内存对齐 (Alignment) - 核心 CE 逻辑
-    // CE "Fast Scan" 勾选时按指定步长对齐（通常是4）；不勾选时 alignment=1，即逐字节扫描全内存
-    if (ui->checkBox_fast_scan->isChecked()) {
-        bool ok = false;
-        uint32_t align = ui->lineEdit_fast_scan_value->text().toUInt(&ok);
-        req.alignment = (ok && align > 0) ? align : 4;
-    }
-    else {
-        req.alignment = 1;
-    }
-
-    // 3. 模块范围过滤
-    // 如果下拉框不是 "All"，则将扫描范围锁定在特定模块的基址和大小内
-    QString modName = ui->comboBox_process_module_List->currentText();
-    if (modName != "All") {
-        const auto* mod = ProcessManager::instance().getModuleByName(modName.toStdString());
-        if (mod) {
-            req.moduleBase = mod->base;
-            req.moduleSize = mod->size;
-        }
-    }
-
-
-    // 5. 核心参数解析：确保 isHex 变量真正发挥作用
-    bool isHex = ui->checkBox_Hex_Value->isChecked();
-
-    if (isStringType(req.dataType)) {
-        // 字符串扫描：调用专项解析器（区分大小写/编码）
-        req.params = parseStringParams();
-    }
-    else if (req.dataType == ScanDataType::ByteArray) {
-        // AOB 扫描：调用专项解析器（处理通配符 ??）
-        req.params = parseAobParams();
-    }
-    else {
-        // 数值类型：集成解析逻辑，直接处理 isHex
-        ValueParams vp;
-        if (req.firstType != ScanType::UnknownInitial) {
-            QString text1 = ui->lineEdit_ValueInput->text();
-            bool ok1 = false;
-
-            if (isFloatingPoint(req.dataType)) {
-                // 浮点数解析（浮点数不涉及十六进制输入）
-                double d1 = text1.toDouble(&ok1);
-                if (ok1) {
-                    if (req.dataType == ScanDataType::Float32) {
-                        float f = static_cast<float>(d1);
-                        std::memcpy(&vp.value1, &f, 4);
-                    }
-                    else {
-                        std::memcpy(&vp.value1, &d1, 8);
-                    }
-                }
-            }
-            else {
-                // 整数解析：关键点！根据 isHex 切换进制
-                vp.value1 = isHex ? text1.toULongLong(&ok1, 16) : text1.toULongLong(&ok1, 10);
-            }
-
-            // 处理“介于两者之间” (Between) 的第二个值
-            if (req.firstType == ScanType::Between) {
-                QString text2 = ui->lineEdit_ValueInput2->text();
-                bool ok2 = false;
-                if (isFloatingPoint(req.dataType)) {
-                    double d2 = text2.toDouble(&ok2);
-                    if (ok2) {
-                        if (req.dataType == ScanDataType::Float32) {
-                            float f2 = static_cast<float>(d2);
-                            std::memcpy(&vp.value2, &f2, 4);
-                        }
-                        else {
-                            std::memcpy(&vp.value2, &d2, 8);
-                        }
-                    }
-                }
-                else {
-                    vp.value2 = isHex ? text2.toULongLong(&ok2, 16) : text2.toULongLong(&ok2, 10);
-                }
-            }
-        }
-        req.params = vp;
-    }
-
-    return req;
-}
-
-ScanRequest MainWindow::buildNextScanRequest() const
-{
-    ScanRequest req;
-    req.mode = ScanMode::Next;
-    req.dataType = m_currentDataType;
-    req.firstType = m_currentFirstScanType;
-
-    int nextIdx = ui->comboBox_atribute_For_Find->currentIndex();
-    switch (nextIdx) {
-        case 0: req.nextType = NextScanType::Equal; break;
-        case 1: req.nextType = NextScanType::Increased; break;
-        case 2: req.nextType = NextScanType::Decreased; break;
-        case 3: req.nextType = NextScanType::Changed; break;
-        case 4: req.nextType = NextScanType::Unchanged; break;
-        case 5: req.nextType = NextScanType::Between; break;
-        default: req.nextType = NextScanType::Equal; break;
-    }
-    ValueParams vp;
-    QString text1 = ui->lineEdit_ValueInput->text();
-    if (isFloatingPoint(req.dataType)) {
-        double d = text1.toDouble();
-        if (req.dataType == ScanDataType::Float32) {
-            float f = static_cast<float>(d);
-            std::memcpy(&vp.value1, &f, sizeof(f));
-        }
-        else {
-            std::memcpy(&vp.value1, &d, sizeof(d));
-        }
-    }
-    if (req.nextType == NextScanType::Equal || req.nextType == NextScanType::Between) {
-        vp = parseValueParams(static_cast<ScanType>(req.nextType), req.dataType);
-    }
-    else {
-        vp.value1 = text1.toULongLong(nullptr, 10);
-    }
-    req.params = vp;
-    return req;
-}
 
 // ==================== 扫描执行 ====================
 void MainWindow::onFirstScan()
 {
+    if (m_scanService->isScanning()) {
+        m_scanService->cancel();
+        m_isScanning = false;
+        refreshUiControls();
+        return;
+    }
+
     if (!m_isFirstScan) {
-        // 执行重置逻辑
         m_isFirstScan = true;
-
-        m_scanService->clear();         // 清空仓库结果
-        updateCountLabels();            // 更新数量显示为 0
-        updateScanTypeComboBox();       // 还原下拉菜单为首次扫描菜单
-
-        ui->pushButton_new_find->setText("首次扫描"); // 还原按钮文字
-        ui->pushButton_next_find->setEnabled(false);
-        return; // 结束，等待用户输入后再点击“首次扫描”
+        m_scanService->clear();
+        m_scanService->stopAutoRefresh();
+        updateScanTypeComboBox();
+        refreshUiControls();
+        updateCountLabels();
+        return; 
     }
 
 
@@ -522,9 +458,16 @@ void MainWindow::onFirstScan()
         QMessageBox::warning(this, "Error", "Please open a process first.");
         return;
     }
-    if (m_scanService->isScanning()) return;
 
-    ScanRequest req = buildFirstScanRequest();
+
+    // 新增：验证输入，不合法则弹窗并返回
+    if (!validateScanInput(ScanMode::First)) {
+        return;
+    }
+
+
+    ScanRequest req = buildScanRequest(ScanMode::First);
+    //ScanRequest req = buildFirstScanRequest();
     // 参数校验
     if (std::holds_alternative<StringParams>(req.params)) {
         if (std::get<StringParams>(req.params).text.empty()) {
@@ -549,16 +492,60 @@ void MainWindow::onFirstScan()
 
     m_currentDataType = req.dataType;
     m_currentFirstScanType = req.firstType;
+    m_scanService->startScan(req);
 
-
+	//扫描进度条显示
     ui->progressBar->setVisible(true);
     ui->progressBar->setValue(0);
     statusBar()->showMessage(tr("正在初始化扫描..."));
 
-    m_scanService->startScan(req);
-    ui->pushButton_new_find->setEnabled(false);
-    ui->pushButton_next_find->setEnabled(false);
+    m_isScanning = true;
+    refreshUiControls();
 }
+
+
+ScanRequest MainWindow::buildScanRequest(ScanMode mode) const
+{
+    ScanRequest req;
+    req.mode = mode;
+    req.dataType = (mode == ScanMode::First) ? parseDataTypeFromUI() : m_currentDataType;
+
+    // 获取 ComboBox 选中的类型
+    QVariant typeData = ui->comboBox_atribute_For_Find->currentData();
+    if (mode == ScanMode::First) {
+        req.firstType = typeData.value<ScanType>();
+    }
+    else {
+        req.nextType = typeData.value<NextScanType>();
+    }
+
+    // 快速扫描/对齐
+    if (ui->checkBox_fast_scan->isChecked()) {
+        req.alignment = ui->lineEdit_fast_scan_value->text().toUInt();
+    }
+    else {
+        req.alignment = 1;
+    }
+
+    // 根据模式填充参数
+    if (req.dataType == ScanDataType::Structure) {
+        req.params = getStructureParamsFromUi();
+    }
+    else if (isStringType(req.dataType)) {
+        req.params = parseStringParams();
+    }
+    else if (isByteArrayType(req.dataType)) {
+        req.params = parseAobParams();
+    }
+    else {
+        // 数值扫描类型 (支持 Between 和单一值)
+        req.params = parseValueParams(req.firstType, req.dataType);
+    }
+
+    return req;
+}
+
+
 
 void MainWindow::onNextScan()
 {
@@ -572,7 +559,14 @@ void MainWindow::onNextScan()
         return;
     }
 
-    ScanRequest req = buildNextScanRequest();
+    if (!validateScanInput(ScanMode::Next)) {
+        return;
+    }
+    
+
+
+	ScanRequest req = buildScanRequest(ScanMode::Next);
+
     if (std::holds_alternative<ValueParams>(req.params)) {
         if (std::get<ValueParams>(req.params).value1 == 0 &&
             ui->lineEdit_ValueInput->text().isEmpty()) {
@@ -581,7 +575,11 @@ void MainWindow::onNextScan()
         }
     }
 
+    
+
     m_scanService->startScan(req);
+    m_isScanning = true;
+    refreshUiControls();
     ui->pushButton_new_find->setEnabled(false);
     ui->pushButton_next_find->setEnabled(false);
 }
@@ -591,32 +589,72 @@ void MainWindow::updateScanTypeComboBox()
     ui->comboBox_atribute_For_Find->blockSignals(true);
     ui->comboBox_atribute_For_Find->clear();
 
-    if (m_isFirstScan) {
-        ui->comboBox_atribute_For_Find->addItems({ "精确数值", "值大于", "值小于", "介于两者之间", "未知初始值" });
+    const bool isFirst = m_isFirstScan;
+    const ScanDataType dataType = isFirst ? parseDataTypeFromUI() : m_currentDataType;
+
+    // 判断是否为单一扫描条件类型（字符串、字节数组、Bit）
+    const bool uniqueCondition = isStringType(dataType) || (dataType == ScanDataType::ByteArray) || (dataType == ScanDataType::Bit);
+
+    if (dataType == ScanDataType::Structure) {
+        ui->comboBox_atribute_For_Find->addItem("Structure");
+    }
+    else if (uniqueCondition) {
+
+        if (isStringType(dataType)) {
+            if (isFirst)
+                ui->comboBox_atribute_For_Find->addItem("字符串搜索", QVariant::fromValue(ScanType::StringScan));
+            else
+                ui->comboBox_atribute_For_Find->addItem("精确数值", QVariant::fromValue(NextScanType::Equal));
+        }
+        else if (dataType == ScanDataType::ByteArray) {
+            if (isFirst)
+                ui->comboBox_atribute_For_Find->addItem("字节数组", QVariant::fromValue(ScanType::ExactValue));
+            else
+                ui->comboBox_atribute_For_Find->addItem("精确数值", QVariant::fromValue(NextScanType::Equal));
+        }
+        else if (dataType == ScanDataType::Bit) {
+            if (isFirst)
+                ui->comboBox_atribute_For_Find->addItem("精确数值", QVariant::fromValue(ScanType::ExactValue));
+            else
+                ui->comboBox_atribute_For_Find->addItem("精确数值", QVariant::fromValue(NextScanType::Equal));
+        }
+        ui->comboBox_atribute_For_Find->setCurrentIndex(0);
     }
     else {
-        ui->comboBox_atribute_For_Find->addItems({ "精确数值", "增加的值", "减少的值", "变动的值", "未变动的值", "介于两者之间","数值增加了多少","数值减少了多少","以...结尾的数值" });
+        // 数值类型（含 All）动态添加
+        if (isFirst) {
+            ui->comboBox_atribute_For_Find->addItem("精确数值", QVariant::fromValue(ScanType::ExactValue));
+            ui->comboBox_atribute_For_Find->addItem("值大于", QVariant::fromValue(ScanType::GreaterThan));
+            ui->comboBox_atribute_For_Find->addItem("值小于", QVariant::fromValue(ScanType::LessThan));
+            ui->comboBox_atribute_For_Find->addItem("介于两者之间", QVariant::fromValue(ScanType::Between));
+            ui->comboBox_atribute_For_Find->addItem("未知初始值", QVariant::fromValue(ScanType::UnknownInitial));
+        }
+        else {
+            ui->comboBox_atribute_For_Find->addItem("精确数值", QVariant::fromValue(NextScanType::Equal));
+            ui->comboBox_atribute_For_Find->addItem("变动的值", QVariant::fromValue(NextScanType::Changed));
+            ui->comboBox_atribute_For_Find->addItem("未变动的值", QVariant::fromValue(NextScanType::Unchanged));
+            ui->comboBox_atribute_For_Find->addItem("增加的值", QVariant::fromValue(NextScanType::Increased));
+            ui->comboBox_atribute_For_Find->addItem("减少的值", QVariant::fromValue(NextScanType::Decreased));
+            ui->comboBox_atribute_For_Find->addItem("数值增加了多少", QVariant::fromValue(NextScanType::IncreasedBy));
+            ui->comboBox_atribute_For_Find->addItem("数值减少了多少", QVariant::fromValue(NextScanType::DecreasedBy));
+            ui->comboBox_atribute_For_Find->addItem("介于两者之间", QVariant::fromValue(NextScanType::Between));
+            ui->comboBox_atribute_For_Find->addItem("以...结尾的数值", QVariant::fromValue(NextScanType::EndsWith));
+            ui->comboBox_atribute_For_Find->addItem("对比首次扫描", QVariant::fromValue(NextScanType::Compare_to_First_Scan));
+        }
+        ui->comboBox_atribute_For_Find->setCurrentIndex(0);
     }
 
-    ui->comboBox_atribute_For_Find->setCurrentIndex(0);
     ui->comboBox_atribute_For_Find->blockSignals(false);
-    // 【关键修复】手动调用一次更新函数，因为 signals 被 block 了
-    updateScanTypeUi(ui->comboBox_atribute_For_Find->currentIndex());
+    refreshUiControls(); // 更新完条件列表后立即刷新其余控件
 }
 
 // ==================== 扫描完成槽 ====================
 void MainWindow::onScanCompleted()
 {
+	m_isFirstScan = false;
+    m_isScanning = false;
 
-    bool canNextScan = m_scanService->hasResults() ||
-        (m_currentFirstScanType == ScanType::UnknownInitial );
-
-    ui->pushButton_new_find->setEnabled(true);
-    ui->pushButton_next_find->setEnabled(canNextScan);
-
-    m_isFirstScan = false;
-
-    ui->pushButton_new_find->setText("新扫描");
+    refreshUiControls();
     updateScanTypeComboBox();
     updateCountLabels();
 
@@ -648,9 +686,6 @@ void MainWindow::onDoubleClickScanResult(const QModelIndex& index)
 {
     if (!ProcessManager::instance().memory()) return;
 
-    // 获取地址：需要调用 ScanResultViewModel::getAddress(int row)
-    // 如果该接口尚未实现，请在 ScanResultViewModel 中添加：
-    //   uint64_t getAddress(int row) const { return m_repo ? m_repo->addressAtIndex(row) : 0; }
     uint64_t addr = m_resultModel->getAddress(index.row());
     if (addr == 0) return;
 
@@ -670,15 +705,18 @@ void MainWindow::resetToNoProcess()
     m_scanService->stopAutoRefresh();
     m_scanService->clear();                   
     updateCountLabels();
+
     ProcessManager::instance().detach();
     addressModel->clear();
 
-    ui->pushButton_new_find->setEnabled(false);
-    ui->pushButton_next_find->setEnabled(false);
+
+
     ui->label_Process_name->setText("请选择进程");
     setWindowTitle("Cheat Engine");
     ui->comboBox_process_module_List->clear();
     ui->comboBox_process_module_List->addItem("All");
+
+    refreshUiControls();
     ui->progressBar->setVisible(false);
     statusBar()->clearMessage();
 }
@@ -688,4 +726,456 @@ void MainWindow::onProcessTerminated()
     m_attachedToProcess = false;
     QMessageBox::information(this, "Process terminated", "The target process has exited.");
     resetToNoProcess();
+}
+
+
+void MainWindow::onAddStructureMember()
+{
+    // 创建一个新的水平容器行
+    QWidget* rowWidget = new QWidget(this);
+    QHBoxLayout* hLayout = new QHBoxLayout(rowWidget);
+    hLayout->setContentsMargins(2, 2, 2, 2);
+
+    // 控件 1: 数据类型
+    QComboBox* typeCombo = new QComboBox(rowWidget);
+    typeCombo->addItem("4 Bytes", (int)ScanDataType::Int32);
+    typeCombo->addItem("Float", (int)ScanDataType::Float32);
+    // ... 添加其他常用类型 ...
+
+    // 控件 2: 期望值
+    QLineEdit* valEdit = new QLineEdit(rowWidget);
+    valEdit->setPlaceholderText("Value");
+
+    // 控件 3: 偏移量 (相对于上一个成员)
+    QLineEdit* offsetEdit = new QLineEdit(rowWidget);
+    offsetEdit->setPlaceholderText("Offset");
+    offsetEdit->setValidator(new QIntValidator(0, 1024, this)); // 限制偏移量输入
+
+    hLayout->addWidget(new QLabel("Type:", rowWidget));
+    hLayout->addWidget(typeCombo);
+    hLayout->addWidget(new QLabel("Val:", rowWidget));
+    hLayout->addWidget(valEdit);
+    hLayout->addWidget(new QLabel("Off:", rowWidget));
+    hLayout->addWidget(offsetEdit);
+
+    ui->layout_Struct_MemberList->addWidget(rowWidget);
+}
+
+void MainWindow::onRemoveStructureMember()
+{
+    int count = ui->layout_Struct_MemberList->count();
+    if (count > 0) {
+        QLayoutItem* item = ui->layout_Struct_MemberList->takeAt(count - 1);
+        if (item->widget()) {
+            delete item->widget();
+        }
+        delete item;
+    }
+}
+
+StructureParams MainWindow::getStructureParamsFromUi() const
+{
+    StructureParams sp;
+    for (int i = 0; i < ui->layout_Struct_MemberList->count(); ++i) {
+        QWidget* row = ui->layout_Struct_MemberList->itemAt(i)->widget();
+        if (!row) continue;
+
+        // 通过 findChild 寻找行内的控件
+        QComboBox* typeBox = row->findChild<QComboBox*>();
+        QLineEdit* valEdit = row->findChildren<QLineEdit*>().at(0);
+        QLineEdit* offEdit = row->findChildren<QLineEdit*>().at(1);
+
+        StructureMember member;
+        member.type = static_cast<ScanDataType>(typeBox->currentData().toInt());
+        member.criteria.value1 = valEdit->text().toULongLong(); // 简单示例，需处理进制
+        member.offsetFromPrev = offEdit->text().toULong();
+
+        sp.members.push_back(member);
+    }
+    return sp;
+}
+
+
+UiContext MainWindow::computeUiContext() const
+{
+    UiContext ctx;
+    ctx.hasProcess = m_attachedToProcess;
+    ctx.isScanning = m_isScanning.load();
+    ctx.isFirstScan = m_isFirstScan;
+
+    // 数据类型：首次根据 UI，再次根据锁定的类型
+    ctx.dataType = ctx.isFirstScan ? parseDataTypeFromUI() : m_currentDataType;
+
+    ctx.isStringMode = isStringType(ctx.dataType);
+    ctx.isByteArrayMode = (ctx.dataType == ScanDataType::ByteArray);
+    ctx.isStructureMode = (ctx.dataType == ScanDataType::Structure);
+    ctx.isAllMode = (ctx.dataType == ScanDataType::All);
+
+    const bool isNumeric = (ctx.dataType == ScanDataType::Int8 ||
+        ctx.dataType == ScanDataType::Int16 ||
+        ctx.dataType == ScanDataType::Int32 ||
+        ctx.dataType == ScanDataType::Int64 ||
+        ctx.dataType == ScanDataType::Float32 ||
+        ctx.dataType == ScanDataType::Float64 ||
+        ctx.dataType == ScanDataType::Bit ||
+        ctx.isAllMode);
+
+    // 扫描条件枚举
+    const QVariant typeVar = ui->comboBox_atribute_For_Find->currentData();
+    if (ctx.isFirstScan) {
+        ctx.firstScanType = typeVar.isValid() ? typeVar.value<ScanType>() : ScanType::ExactValue;
+    }
+    else {
+        ctx.nextScanType = typeVar.isValid() ? typeVar.value<NextScanType>() : NextScanType::Equal;
+    }
+
+    const bool canConfig = !ctx.isScanning && ctx.hasProcess;
+
+    ctx.comboDataTypeEnabled = canConfig && ctx.isFirstScan;
+    ctx.comboModuleEnabled = canConfig && ctx.isFirstScan;
+    // 属性下拉框禁用条件：字符串、字节数组、Bit、结构体
+    ctx.comboTypeEnabled = canConfig && !ctx.isStringMode && !ctx.isByteArrayMode&& !ctx.isStructureMode;
+
+    // ---- 输入框数量 ----
+    if (ctx.isFirstScan) {
+        switch (ctx.firstScanType) {
+        case ScanType::UnknownInitial: ctx.inputFieldsNeeded = 0; break;
+        case ScanType::ExactValue:
+        case ScanType::GreaterThan:
+        case ScanType::LessThan:
+        case ScanType::StringScan:     ctx.inputFieldsNeeded = 1; break;
+        case ScanType::Between:        ctx.inputFieldsNeeded = 2; break;
+        default:                       ctx.inputFieldsNeeded = 1; break;
+        }
+    }
+    else {
+        switch (ctx.nextScanType) {
+        case NextScanType::Changed:
+        case NextScanType::Unchanged:
+        case NextScanType::Increased:
+        case NextScanType::Decreased:
+        case NextScanType::NotEqual:
+        case NextScanType::Compare_to_First_Scan:
+            ctx.inputFieldsNeeded = 0; break;
+        case NextScanType::Equal:
+        case NextScanType::IncreasedBy:
+        case NextScanType::DecreasedBy:
+        case NextScanType::EndsWith:
+            ctx.inputFieldsNeeded = 1; break;
+        case NextScanType::Between:
+            ctx.inputFieldsNeeded = 2; break;
+        default: ctx.inputFieldsNeeded = 0; break;
+        }
+    }
+
+    //百分比按钮
+    ctx.showPercent = false;
+    if (!ctx.isFirstScan && !ctx.isStringMode && !ctx.isByteArrayMode && !ctx.isStructureMode) {
+        NextScanType nt = ctx.nextScanType;
+        if (nt == NextScanType::IncreasedBy || nt == NextScanType::DecreasedBy || nt == NextScanType::Between) {
+            ctx.showPercent = true;
+        }
+    }
+
+
+    // ---- 控件可见性 ----
+    ctx.showRepeat = false;
+    if (!ctx.isFirstScan && !ctx.isStringMode && !ctx.isByteArrayMode && !ctx.isStructureMode) {
+        // 仅对不需要输入数值的再次扫描条件显示 Repeat
+        NextScanType nt = ctx.nextScanType;
+        if (nt == NextScanType::Changed || nt == NextScanType::Unchanged ||
+            nt == NextScanType::Increased || nt == NextScanType::Decreased) {
+            ctx.showRepeat = true;
+        }
+    }
+
+    ctx.showHex = !ctx.isStringMode && !ctx.isByteArrayMode && !ctx.isStructureMode
+        && !isFloatingPoint(ctx.dataType) && !ctx.isAllMode; // All 内部复杂，不显示 Hex
+    if (ctx.isFirstScan && ctx.firstScanType == ScanType::UnknownInitial) ctx.showHex = false;
+    if (!ctx.isFirstScan && ctx.inputFieldsNeeded == 0) ctx.showHex = false;
+
+    ctx.showStringOptions = ctx.isStringMode;
+
+    ctx.showFastScan = ctx.isFirstScan && !ctx.isStringMode && !ctx.isByteArrayMode
+        && !ctx.isStructureMode && !ctx.isAllMode;
+    ctx.showFastScanOptions = ctx.showFastScan && ui->checkBox_fast_scan->isChecked();
+
+    ctx.showNot = !ctx.isStringMode && !ctx.isByteArrayMode && !ctx.isStructureMode
+        && ctx.inputFieldsNeeded > 0;
+
+    ctx.showOnlySimpleValue = isFloatingPoint(ctx.dataType)
+        && !ctx.isStringMode
+        && !ctx.isByteArrayMode
+        && !ctx.isStructureMode
+        && !ctx.isAllMode;
+
+    // ---- 按钮启用 ----
+    if (ctx.isScanning) {
+        ctx.newScanButtonEnabled = false;
+        ctx.nextScanButtonEnabled = false;
+        ctx.newScanText = "Scanning...";
+        ctx.nextScanText = "Scanning...";
+        return ctx;
+    }
+
+    // 按钮只要有进程、非扫描中就可用，不再检查输入合法性
+    ctx.newScanButtonEnabled = ctx.hasProcess;
+    ctx.nextScanButtonEnabled = ctx.hasProcess && !ctx.isFirstScan;
+
+    // 动态按钮文字
+    if (ctx.isFirstScan) {
+        ctx.newScanText = "首次扫描";
+        ctx.nextScanText = "再次扫描";
+    }
+    else {
+        ctx.newScanText = "新扫描";
+        ctx.nextScanText = "再次扫描";
+    }
+
+    return ctx;
+}
+
+void MainWindow::refreshUiControls()
+{
+    const UiContext ctx = computeUiContext();
+
+    // ######## 统一隐藏 ########
+    ui->lineEdit_ValueInput->hide();
+    ui->lineEdit_ValueInput2->hide();
+    ui->label_and->hide();
+    ui->checkBox_Hex_Value->hide();
+    ui->checkBox_Not->hide();
+    ui->checkBox_fast_scan->hide();
+    ui->lineEdit_fast_scan_value->hide();
+    ui->radioButton_align_size->hide();
+    ui->radioButton_end_number->hide();
+    ui->widget_StructurePanel->hide();
+    ui->widget_Standard_Struct_InputArea->show();
+    ui->checkBox_use_UTF8->hide();
+    ui->checkBox_use_UTF16->hide();
+    ui->checkBox_Caps_Check->hide();
+    ui->checkBox_Only_Simple_Value->hide();
+    ui->checkBox_percent->hide();
+    ui->checkBox_repeat->hide();
+
+
+    // ######## 基本启用状态 ########
+    ui->comboBox_Value_Data_Size->setEnabled(ctx.comboDataTypeEnabled);
+    ui->comboBox_atribute_For_Find->setEnabled(ctx.comboTypeEnabled);
+    ui->comboBox_process_module_List->setEnabled(ctx.comboModuleEnabled);
+    ui->checkBox_able_to_execute->setEnabled(ctx.comboModuleEnabled);
+    ui->checkBox_able_to_write->setEnabled(ctx.comboModuleEnabled);
+    ui->pushButton_new_find->setEnabled(ctx.newScanButtonEnabled);
+    ui->pushButton_next_find->setEnabled(ctx.nextScanButtonEnabled);
+    ui->pushButton_new_find->setText(ctx.newScanText);
+    ui->pushButton_next_find->setText(ctx.nextScanText);
+
+    if (!ctx.hasProcess) return;
+
+    // ######## 结构体模式 ########
+    if (ctx.isStructureMode) {
+        ui->widget_Standard_Struct_InputArea->hide();
+        ui->widget_StructurePanel->show();
+        return;
+    }
+
+    // ######## 输入框显示 ########
+    if (ctx.inputFieldsNeeded >= 1) {
+        ui->lineEdit_ValueInput->show();
+        ui->lineEdit_ValueInput->setEnabled(!ctx.isScanning);
+    }
+    if (ctx.inputFieldsNeeded >= 2) {
+        ui->lineEdit_ValueInput2->show();
+        ui->label_and->show();
+        ui->lineEdit_ValueInput2->setEnabled(!ctx.isScanning);
+    }
+
+    // ######## 字符串模式 ########
+    if (ctx.isStringMode) {
+        ui->checkBox_use_UTF8->show();
+        ui->checkBox_use_UTF16->show();
+        ui->checkBox_Caps_Check->show();
+        ui->checkBox_use_UTF8->setEnabled(!ctx.isScanning);
+        ui->checkBox_use_UTF16->setEnabled(!ctx.isScanning);
+        ui->checkBox_Caps_Check->setEnabled(!ctx.isScanning);
+        ui->checkBox_Only_Simple_Value->setEnabled(!ctx.isScanning);
+        return; // 字符串模式下其余控件均不显示
+    }
+
+    // ######## 字节数组模式 ########
+    if (ctx.isByteArrayMode) {
+        // 仅保留输入框，可能的 Hex? 不需要
+        return;
+    }
+
+    // ######## 常规数值扫描（含 Bit, All） ########
+    if (ctx.showHex) {
+        ui->checkBox_Hex_Value->show();
+        ui->checkBox_Hex_Value->setEnabled(!ctx.isScanning);
+    }
+
+    if (ctx.showFastScan) {
+        ui->checkBox_fast_scan->show();
+        ui->checkBox_fast_scan->setEnabled(!ctx.isScanning);
+        if (ctx.showFastScanOptions) {
+            ui->lineEdit_fast_scan_value->show();
+            ui->radioButton_align_size->show();
+            ui->radioButton_end_number->show();
+            ui->lineEdit_fast_scan_value->setEnabled(!ctx.isScanning);
+            ui->radioButton_align_size->setEnabled(!ctx.isScanning);
+            ui->radioButton_end_number->setEnabled(!ctx.isScanning);
+        }
+    }
+
+    if (ctx.showNot) {
+        ui->checkBox_Not->show();
+        ui->checkBox_Not->setEnabled(!ctx.isScanning);
+    }
+
+    if (ctx.showPercent) {
+        ui->checkBox_percent->show();
+        ui->checkBox_percent->setEnabled(!ctx.isScanning);  // 扫描中不可修改
+    }
+
+    if (ctx.showRepeat) {
+        ui->checkBox_repeat->show();
+        ui->checkBox_repeat->setEnabled(!ctx.isScanning);
+    }
+
+    if (ctx.showOnlySimpleValue) {
+        ui->checkBox_Only_Simple_Value->show();
+        ui->checkBox_Only_Simple_Value->setEnabled(!ctx.isScanning);
+    }
+
+
+    // 代码段等常规可见性
+    ui->checkBox_Include_Code_Section->setVisible(true);
+    ui->checkBox_Include_Code_Section->setEnabled(!ctx.isScanning);
+}
+
+
+
+bool MainWindow::validateScanInput(ScanMode mode)
+{
+    const ScanDataType dataType = (mode == ScanMode::First) ? parseDataTypeFromUI() : m_currentDataType;
+    const QVariant typeVar = ui->comboBox_atribute_For_Find->currentData();
+
+    // 结构体模式：至少需要一个成员
+    if (dataType == ScanDataType::Structure) {
+        if (ui->layout_Struct_MemberList->count() == 0) {
+            QMessageBox::warning(this, "错误", "结构体扫描至少需要添加一个成员。");
+            return false;
+        }
+        return true;
+    }
+
+    // 字符串模式：输入不能为空
+    if (isStringType(dataType)) {
+        if (ui->lineEdit_ValueInput->text().trimmed().isEmpty()) {
+            QMessageBox::warning(this, "错误", "请输入要搜索的字符串。");
+            return false;
+        }
+        return true;
+    }
+
+    // 字节数组模式：输入不能为空，且必须是合法十六进制字节
+    if (dataType == ScanDataType::ByteArray) {
+        QString text = ui->lineEdit_ValueInput->text().trimmed();
+        if (text.isEmpty()) {
+            QMessageBox::warning(this, "错误", "请输入字节数组模式（如：AA ?? BB）。");
+            return false;
+        }
+        // 简单验证：至少有一个有效字节或通配符
+        QStringList tokens = text.split(' ', Qt::SkipEmptyParts);
+        bool hasValid = false;
+        for (const QString& tok : tokens) {
+            if (tok.compare("??", Qt::CaseInsensitive) == 0 || tok == "?") {
+                hasValid = true;
+                continue;
+            }
+            bool ok = false;
+            uint val = tok.toUInt(&ok, 16);
+            if (ok && val <= 0xFF) {
+                hasValid = true;
+            }
+            else {
+                QMessageBox::warning(this, "错误", QString("无效的字节：“%1”").arg(tok));
+                return false;
+            }
+        }
+        if (!hasValid) {
+            QMessageBox::warning(this, "错误", "请输入至少一个有效字节或通配符。");
+            return false;
+        }
+        return true;
+    }
+
+    // 数值类型（含 Bit、All）
+    if (mode == ScanMode::First) {
+        ScanType st = typeVar.value<ScanType>();
+        if (st == ScanType::UnknownInitial) {
+            // 未知初始值允许空输入
+            return true;
+        }
+    }
+    else {
+        NextScanType nt = typeVar.value<NextScanType>();
+        if (nt == NextScanType::Changed || nt == NextScanType::Unchanged ||
+            nt == NextScanType::Increased || nt == NextScanType::Decreased ||
+            nt == NextScanType::NotEqual || nt == NextScanType::Compare_to_First_Scan) {
+            // 这些条件无需用户输入
+            return true;
+        }
+    }
+
+    // 需要至少一个输入框
+    if (ui->lineEdit_ValueInput->text().trimmed().isEmpty()) {
+        QMessageBox::warning(this, "错误", "请输入要搜索的数值。");
+        return false;
+    }
+
+    // 如果有第二个输入框（Between）
+    if (ui->lineEdit_ValueInput2->isVisible() && ui->lineEdit_ValueInput2->text().trimmed().isEmpty()) {
+        QMessageBox::warning(this, "错误", "请输入第二个数值（范围上限）。");
+        return false;
+    }
+
+    // 尝试解析数值，检查格式是否正确
+    bool isHex = ui->checkBox_Hex_Value->isChecked() || ui->lineEdit_ValueInput->text().trimmed().startsWith("0x", Qt::CaseInsensitive);
+    if (isFloatingPoint(dataType)) {
+        bool ok = false;
+        ui->lineEdit_ValueInput->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的浮点数格式。");
+            return false;
+        }
+        if (ui->lineEdit_ValueInput2->isVisible()) {
+            ok = false;
+            ui->lineEdit_ValueInput2->text().toDouble(&ok);
+            if (!ok) {
+                QMessageBox::warning(this, "错误", "第二个数值不是有效的浮点数。");
+                return false;
+            }
+        }
+    }
+    else {
+        bool ok = false;
+        QString text1 = ui->lineEdit_ValueInput->text().trimmed();
+        int base = isHex ? 16 : 10;
+        text1.toULongLong(&ok, base);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的整数格式。");
+            return false;
+        }
+        if (ui->lineEdit_ValueInput2->isVisible()) {
+            ok = false;
+            ui->lineEdit_ValueInput2->text().toULongLong(&ok, base);
+            if (!ok) {
+                QMessageBox::warning(this, "错误", "第二个数值不是有效的整数。");
+                return false;
+            }
+        }
+    }
+
+    return true;
 }

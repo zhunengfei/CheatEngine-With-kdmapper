@@ -196,6 +196,9 @@
     <ClInclude Include="type_define\scan_request_result_type_define.h">
       <Filter>new_scan_framework</Filter>
     </ClInclude>
+    <ClInclude Include="x64\Debug\qt\uic\ui_CheatEngine_With_Qt.h">
+      <Filter>Form Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="CheatEngine_With_Qt.ui">

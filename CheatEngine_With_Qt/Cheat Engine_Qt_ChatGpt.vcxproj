@@ -110,6 +110,7 @@
     <ClInclude Include="utils\adaptive_cache.h" />
     <ClInclude Include="utils\TempPathManager.h" />
     <ClInclude Include="utils\thread_pool.h" />
+    <ClInclude Include="x64\Debug\qt\uic\ui_CheatEngine_With_Qt.h" />
     <QtMoc Include="scan\scan_result_view_model.h" />
     <QtMoc Include="scan\scan_service.h" />
     <ClInclude Include="type_define\address_item.h" />

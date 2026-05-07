@@ -5,6 +5,8 @@
 #include <memory>
 #include <variant>
 
+enum class ScanMode { First, Next };
+
 enum class ScanType
 {
     ExactValue,
@@ -23,10 +25,15 @@ enum class NextScanType
     Decreased,
     Changed,
     Unchanged,
-    Between
+    Between,
+    IncreasedBy,
+    DecreasedBy,
+	EndsWith,
+    Compare_to_First_Scan
 };
 
 enum class ScanDataType : uint8_t {
+    Bit,
     Int8,
     Int16,
     Int32,
@@ -34,12 +41,17 @@ enum class ScanDataType : uint8_t {
     Float32,
     Float64,
     AsciiString, 
-    Utf16String,   
-    ByteArray
+    Utf8String,
+    Utf16String,
+    ByteArray,
+    All,
+    Structure,
+    Custom
 };
 
 inline size_t scanDataTypeSize(ScanDataType t) {
     switch (t) {
+    case ScanDataType::Bit:     return 1; // Bit 通常按字节读取后再处理位
     case ScanDataType::Int8:    return 1;
     case ScanDataType::Int16:   return 2;
     case ScanDataType::Int32:   return 4;
@@ -47,13 +59,14 @@ inline size_t scanDataTypeSize(ScanDataType t) {
     case ScanDataType::Float32: return 4;
     case ScanDataType::Float64: return 8;
     case ScanDataType::AsciiString: return 0;
+    case ScanDataType::Utf8String:  return 0; // 变长或特殊处理
     case ScanDataType::Utf16String: return 0;
     case ScanDataType::ByteArray:   return 0;
+    case ScanDataType::All:         return 8; // 按最大长度读取以兼容所有子类型
     default: return 0;
     }
 }
 
-enum class ScanMode { First, Next };
 
 
 
@@ -75,8 +88,30 @@ struct AobParams {
     std::vector<bool>   mask;
 };
 
+// 结构体中的一个成员
+struct StructureMember {
+    ScanDataType type;      // 成员的数据类型 (如 Int32, Float)
+    ValueParams criteria;   // 匹配该成员的数值条件
+    size_t offsetFromPrev;  // 距离上一个成员末尾的偏移字节数
+};
+
+// 结构体扫描参数
+struct StructureParams {
+    std::vector<StructureMember> members;
+
+    // 辅助方法：计算这个结构体在内存中占用的总跨度
+    size_t totalSpan() const {
+        size_t span = 0;
+        for (const auto& m : members) {
+            span += m.offsetFromPrev + scanDataTypeSize(m.type);
+        }
+        return span;
+    }
+};
+
+
 // 统一特殊类型参数体
-using ScanParams = std::variant<ValueParams, StringParams, AobParams>;
+using ScanParams = std::variant<ValueParams, StringParams, AobParams, StructureParams>;
 
 
 struct ScanResult
@@ -103,6 +138,7 @@ struct ScanRequest {
 
     bool onlyWritable;
     bool includeExecutable;
+    bool percentMode = false;
 
     std::shared_ptr<const std::vector<ScanResult>> prevResults = nullptr;
 };
@@ -112,7 +148,7 @@ inline bool isFloatingPoint(ScanDataType t) {
 }
 
 inline bool isStringType(ScanDataType t) {
-    return t == ScanDataType::AsciiString || t == ScanDataType::Utf16String;
+    return t == ScanDataType::AsciiString || t == ScanDataType::Utf16String || t == ScanDataType::Utf8String;
 }
 
 inline bool isByteArrayType(ScanDataType t) {

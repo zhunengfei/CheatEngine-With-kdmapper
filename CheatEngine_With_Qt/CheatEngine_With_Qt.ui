@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>841</width>
-    <height>668</height>
+    <width>896</width>
+    <height>739</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -232,6 +232,37 @@
              <item>
               <layout class="QVBoxLayout" name="verticalLayout_5">
                <item>
+                <widget class="QWidget" name="widget_StructurePanel" native="true">
+                 <layout class="QVBoxLayout" name="verticalLayout_9">
+                  <item>
+                   <layout class="QVBoxLayout" name="layout_Struct_MemberList">
+                    <item>
+                     <widget class="QWidget" name="widget_Standard_Struct_InputArea" native="true"/>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_2">
+                      <item>
+                       <widget class="QPushButton" name="pushButton_Add_Struct_Member">
+                        <property name="text">
+                         <string>添加结构体成员</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButton_Remove_Struct_Member">
+                        <property name="text">
+                         <string>减少结构体成员</string>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
                 <widget class="QComboBox" name="comboBox_Value_Data_Size">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -239,51 +270,6 @@
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
-                 <item>
-                  <property name="text">
-                   <string>1字节</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>2字节</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>4字节</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>8字节</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>单浮点</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>双浮点</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>字符串</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>字节数组</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>所有类型</string>
-                  </property>
-                 </item>
                 </widget>
                </item>
                <item>
@@ -294,31 +280,6 @@
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
-                 <item>
-                  <property name="text">
-                   <string>精确数值</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>值大于</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>值小于</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>介于两者之间的值</string>
-                  </property>
-                 </item>
-                 <item>
-                  <property name="text">
-                   <string>未知的初始值</string>
-                  </property>
-                 </item>
                 </widget>
                </item>
                <item>
@@ -405,11 +366,24 @@
                  <property name="minimumSize">
                   <size>
                    <width>0</width>
-                   <height>25</height>
+                   <height>0</height>
                   </size>
                  </property>
                  <property name="text">
                   <string>UTF-16宽字节</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_use_UTF8">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string>UTF-8编码</string>
                  </property>
                 </widget>
                </item>
