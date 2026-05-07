@@ -8,6 +8,9 @@
 #include <functional>
 #include <future>
 
+
+
+
 class ThreadPool
 {
 public:
@@ -83,12 +86,12 @@ private:
 };
 
 
-class GlobalThreadPool
-{
+// 在 thread_pool.h 中增加单例支持，或者创建一个包装类
+class GlobalThreadPool {
 public:
-    static ThreadPool& instance()
-    {
-        static ThreadPool pool;
+    static ThreadPool& instance() {
+        // 使用硬件核心数初始化，确保最优性能并防止线程爆炸
+        static ThreadPool pool(std::thread::hardware_concurrency());
         return pool;
     }
 };

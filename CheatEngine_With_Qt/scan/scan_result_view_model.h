@@ -3,8 +3,7 @@
 
 #pragma once
 #include <QAbstractTableModel>
-#include "scan_types.h"
-#include "scan_result.h"
+#include "scan_request_result_type_define.h"
 
 class ScanResultRepository;
 

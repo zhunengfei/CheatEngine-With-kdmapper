@@ -1,4 +1,3 @@
-// scan_result_view_model.cpp
 #include "scan_result_view_model.h"
 #include "scan_result_repository.h"
 #include "scan_result_formatter.h"
@@ -6,6 +5,7 @@
 #include <QBrush>
 #include <QColor>
 #include <QString>
+
 
 ScanResultViewModel::ScanResultViewModel(ScanResultRepository* repo, QObject* parent)
     : QAbstractTableModel(parent)
@@ -43,7 +43,7 @@ int ScanResultViewModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid()) return 0;
     if (!m_repo) return 0;
-    return std::min(static_cast<int>(m_repo->resultCount()), MAX_DISPLAY);
+    return min(static_cast<int>(m_repo->resultCount()), MAX_DISPLAY);
 }
 
 int ScanResultViewModel::columnCount(const QModelIndex& parent) const
@@ -69,20 +69,17 @@ QVariant ScanResultViewModel::data(const QModelIndex& index, int role) const {
         ProcessManager::instance().resolveAddress(addr, display, isBase);
 
         if (role == Qt::DisplayRole) return QString::fromStdString(display);
-        if (role == Qt::ForegroundRole && isBase) return QBrush(QColor(0, 128, 0));
+        if (role == Qt::ForegroundRole && isBase) return QBrush(Qt::green);
         return {};
     }
 
     // 2. 处理文本显示 (DisplayRole) - 懒加载核心
+
     if (role == Qt::DisplayRole) {
-        // 调用 Repository 封装好的获取逻辑，ViewModel 不关心数据是来自内存还是磁盘
         return QString::fromStdString(m_repo->getDisplayValue(addr, index.column(), m_displayType));
     }
-
-    // 3. 处理变红逻辑 (ForegroundRole)
     if (role == Qt::ForegroundRole && index.column() == 1) {
         // 如果当前值与上次扫描值不一致，则显示红色
-        // 这里的对比同样是懒加载的：实时读内存 vs 读快照文件
         std::string curVal = m_repo->getDisplayValue(addr, 1, m_displayType);
         std::string prevVal = m_repo->getDisplayValue(addr, 2, m_displayType);
 

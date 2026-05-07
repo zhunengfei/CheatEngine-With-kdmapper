@@ -26,12 +26,6 @@
     <Filter Include="new_scan_framework">
       <UniqueIdentifier>{be3babff-b893-4535-b69e-f6fd9467b6e6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="new_scan_framework\scan_type_define">
-      <UniqueIdentifier>{1b117650-2926-4650-85ae-1846a04abef4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="new_scan_framework\Scan_accelerate">
-      <UniqueIdentifier>{6f85bcf1-cb8c-4c04-9f0c-e871807d94d6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="utils">
       <UniqueIdentifier>{68348cca-8353-406d-b91d-30c6838be448}</UniqueIdentifier>
     </Filter>
@@ -104,7 +98,10 @@
     <ClCompile Include="scan\scan_service.cpp">
       <Filter>new_scan_framework</Filter>
     </ClCompile>
-    <ClCompile Include="Scan_Snapshot_Reader.cpp">
+    <ClCompile Include="scan\scan_snapshot.cpp">
+      <Filter>new_scan_framework</Filter>
+    </ClCompile>
+    <ClCompile Include="scan\scan_snapshot_manager.cpp">
       <Filter>new_scan_framework</Filter>
     </ClCompile>
   </ItemGroup>
@@ -169,15 +166,6 @@
     <ClInclude Include="IKernelObjectManager.h">
       <Filter>Interface</Filter>
     </ClInclude>
-    <ClInclude Include="type_define\scan_result.h">
-      <Filter>new_scan_framework\scan_type_define</Filter>
-    </ClInclude>
-    <ClInclude Include="type_define\scan_types.h">
-      <Filter>new_scan_framework\scan_type_define</Filter>
-    </ClInclude>
-    <ClInclude Include="type_define\scan_request.h">
-      <Filter>new_scan_framework\scan_type_define</Filter>
-    </ClInclude>
     <ClInclude Include="scan\scan_engine.h">
       <Filter>new_scan_framework</Filter>
     </ClInclude>
@@ -187,19 +175,25 @@
     <ClInclude Include="scan\scan_result_repository.h">
       <Filter>new_scan_framework</Filter>
     </ClInclude>
-    <ClInclude Include="SimdKernels.h">
-      <Filter>new_scan_framework\Scan_accelerate</Filter>
-    </ClInclude>
-    <ClInclude Include="thread_pool.h">
+    <ClInclude Include="utils\adaptive_cache.h">
       <Filter>utils</Filter>
     </ClInclude>
-    <ClInclude Include="adaptive_cache.h">
+    <ClInclude Include="utils\TempPathManager.h">
       <Filter>utils</Filter>
     </ClInclude>
-    <ClInclude Include="TempPathManager.h">
+    <ClInclude Include="utils\thread_pool.h">
       <Filter>utils</Filter>
     </ClInclude>
-    <ClInclude Include="Scan_Snapshot_Reader.h">
+    <ClInclude Include="scan\scan_snapshot.h">
+      <Filter>new_scan_framework</Filter>
+    </ClInclude>
+    <ClInclude Include="scan\scan_snapshot_manager.h">
+      <Filter>new_scan_framework</Filter>
+    </ClInclude>
+    <ClInclude Include="scan\scan_simd_accelerate.h">
+      <Filter>new_scan_framework</Filter>
+    </ClInclude>
+    <ClInclude Include="type_define\scan_request_result_type_define.h">
       <Filter>new_scan_framework</Filter>
     </ClInclude>
   </ItemGroup>

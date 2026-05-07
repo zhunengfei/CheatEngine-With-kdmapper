@@ -1,79 +1,65 @@
 ﻿#pragma once
-
-#include "scan_request.h"
-#include "scan_result.h"
-#include "scan_types.h"
+#include "scan_request_result_type_define.h"
 #include "adaptive_cache.h"
-#include "memory_region.h"
+#include "scan_snapshot_manager.h"
+#include "scan_simd_accelerate.h"
+#include "thread_pool.h"
 #include <atomic>
 #include <memory>
-#include <map>
-#include <functional> 
+#include <vector>
+#include <algorithm>
+#include <cctype>
+
 
 class ScanEngine {
 public:
-    // 包含自适应缓存的返回包
     struct ResultPack {
         std::shared_ptr<AdaptiveCachePool<ScanResult>> results;
         ScanDataType dataType;
     };
 
-
-
     ScanEngine();
-    ~ScanEngine();
+    ~ScanEngine() = default;
 
-    ResultPack execute(const ScanRequest& request);
+    // 唯一外部入口
+    ResultPack execute(const ScanRequest& request, const std::vector<ScanResult>& prevResults);
 
     void cancel() { m_cancel.store(true, std::memory_order_release); }
     bool isCancelled() const { return m_cancel.load(std::memory_order_acquire); }
-    int regionsCompleted() const { return m_regionsCompleted.load(std::memory_order_relaxed); }
-    int totalRegions() const { return m_totalRegions; }
+    int progress() const { return m_progress.load(std::memory_order_relaxed); }
+    int totalItems() const { return m_totalItems.load(); }
 
-
-    std::string getSnapshotPath() const { return m_snapshotPath; }
-    const std::map<uint64_t, size_t>& getSnapshotIndex() const { return m_snapshotIndex; }
+    std::shared_ptr<ScanSnapshot> getFirstSnapshot() const { return m_snapshotMgr->getFirst(); }
+    std::shared_ptr<ScanSnapshot> getPreviousSnapshot() const { return m_snapshotMgr->getPrevious(); }
 
 private:
+    static ThreadPool& getGlobalPool() {
+        static ThreadPool pool(std::thread::hardware_concurrency());
+        return pool;
+    }
 
     template <typename T>
-    bool readValueFromSnapshot(std::ifstream& file, uint64_t addr, T& outVal);
-
-    void createMemorySnapshot(const std::vector<MemoryRegion>& regions);
-    bool readSnapshotDataOptimized(std::ifstream& inFile, uint64_t address, uint8_t* buffer, size_t size);
-    //未知初始值扫描优化
-    bool readSnapshotData(uint64_t address, uint8_t* buffer, size_t size);
+    void dispatchScan(const ScanRequest& req, const std::vector<ScanResult>& prevResults,
+        std::shared_ptr<AdaptiveCachePool<ScanResult>> outCache);
 
     template <typename T>
-    std::function<bool(T, T)> getNextScanPredicate(const ScanRequest& req);
-
-    // 引擎分发与核心逻辑 (使用泛型 T 作为数据类型)
-    template <typename T>
-    void dispatchFirstScanForType(const ScanRequest& req, AdaptiveCachePool<ScanResult>& outCache);
+    void taskFirstScan(const ScanRequest& req, MemoryRegion region,
+        std::shared_ptr<ScanSnapshot> current,
+        std::shared_ptr<AdaptiveCachePool<ScanResult>> outCache);
 
     template <typename T>
-    void dispatchNextScanForType(const ScanRequest& req,
-        const std::vector<ScanResult>& prevResults,
-        AdaptiveCachePool<ScanResult>& outCache);
+    void taskNextScan(const ScanRequest& req, const std::vector<ScanResult>& oldBatch,
+        std::shared_ptr<ScanSnapshot> current,
+        std::shared_ptr<ScanSnapshot> previous,
+        std::shared_ptr<AdaptiveCachePool<ScanResult>> outCache);
 
-    template <typename T, typename Predicate>
-    void executeFirstScanCore(const ScanRequest& req, Predicate pred, AdaptiveCachePool<ScanResult>& outCache);
+    // 特殊类型匹配算法
 
-    template <typename T, typename Predicate>
-    void executeNextScanCore(const ScanRequest& req, const std::vector<ScanResult>& prevResults, Predicate pred, AdaptiveCachePool<ScanResult>& outCache);
-    
-    template <typename T, typename Predicate>
-    void executeNextScanAfterUnknown(const ScanRequest& req, Predicate pred, AdaptiveCachePool<ScanResult>& outCache);
-   
+    void performStringSearch(const std::vector<uint8_t>& buf, uint64_t base, const StringParams& p, ScanDataType type, std::vector<uint64_t>& matched);
+    void performAobSearch(const std::vector<uint8_t>& buf, uint64_t base, const AobParams& p, std::vector<uint64_t>& matched);
+
     std::atomic<bool> m_cancel{ false };
-    std::atomic<int>  m_regionsCompleted{ 0 };
-    int               m_totalRegions = 0;
-
-    std::string m_snapshotPath;
-    std::map<uint64_t, size_t>  m_snapshotIndex;
-
-    std::string m_firstSnapshotPath; // 永久保存首次扫描的镜像
-    std::string m_prevSnapshotPath;  // 动态更新上次扫描的镜像
-    std::map<uint64_t, size_t> m_firstSnapshotIndex;
-    std::map<uint64_t, size_t> m_prevSnapshotIndex;
+    std::atomic<int>  m_progress{ 0 };
+    std::atomic<int>  m_totalItems{ 0 };
+    std::unique_ptr<SnapshotManager> m_snapshotMgr;
 };

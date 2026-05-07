@@ -7,7 +7,7 @@
 #include "process_manager.h"
 #include "scan_service.h"
 #include "scan_result_view_model.h"
-#include "scan_request.h"
+#include "scan_request_result_type_define.h"
 
 #include <QTimer>
 #include <QTableView>

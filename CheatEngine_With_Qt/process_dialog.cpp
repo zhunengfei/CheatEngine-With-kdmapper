@@ -153,14 +153,7 @@ void ProcessDialog::populateTables()
     int appRow = 0;
     int allRow = 0;
 
-    processes = ProcessManager::instance().processEnumerator()->enumerate();
-    //gpt 对process返回进行安全判断
-    // Ensure processes are safely obtained
-    if (auto* enumerator = ProcessManager::instance().processEnumerator()) {
-        processes = enumerator->enumerate();
-    } else {
-        processes.clear();
-    }
+    processes = ProcessManager::instance().getProcesses();
 
     appTable->setRowCount(0);
     allTable->setRowCount(processes.size());

@@ -33,7 +33,7 @@ std::vector<MemoryRegion> ProcessManager::getMemoryRegions()
 std::vector<ProcessInfo> ProcessManager::getProcesses()
 {
 	std::vector<ProcessInfo> processes;
-	if (m_processEnumerator) {
+	if (m_pid != 0 && m_processEnumerator) {
 		processes = m_processEnumerator->enumerate();
 	}
 	return processes;

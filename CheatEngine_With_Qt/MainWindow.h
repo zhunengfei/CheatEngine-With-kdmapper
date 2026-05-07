@@ -4,7 +4,7 @@
 #include <QTableView>
 #include <atomic>
 #include <memory>
-#include "scan_request.h"
+#include "scan_request_result_type_define.h"
 
 namespace Ui {
     class CheatEngine_With_QtClass;

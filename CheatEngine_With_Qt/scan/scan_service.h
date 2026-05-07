@@ -4,7 +4,7 @@
 #include <QTimer>
 #include <atomic>
 #include <memory>
-#include "scan_request.h"
+#include "scan_request_result_type_define.h"
 #include "scan_engine.h"
 
 class ScanResultRepository;

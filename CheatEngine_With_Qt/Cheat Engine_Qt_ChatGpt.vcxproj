@@ -39,7 +39,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <IncludePath>$(ProjectDir)\Factory;$(ProjectDir)\Implement\Win_API;$(ProjectDir)\interface;$(ProjectDir)\type_define;$(ProjectDir)\scan;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\Factory;$(ProjectDir)\Implement\Win_API;$(ProjectDir)\interface;$(ProjectDir)\type_define;$(ProjectDir)\scan;$(ProjectDir)\utils;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <PostBuildEvent>
@@ -80,12 +80,12 @@
     <ClCompile Include="scan\scan_result_repository.cpp" />
     <ClCompile Include="scan\scan_result_view_model.cpp" />
     <ClCompile Include="scan\scan_service.cpp" />
-    <ClCompile Include="Scan_Snapshot_Reader.cpp" />
+    <ClCompile Include="scan\scan_snapshot.cpp" />
+    <ClCompile Include="scan\scan_snapshot_manager.cpp" />
     <QtMoc Include="MainWindow.h" />
     <ClCompile Include="MainWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="adaptive_cache.h" />
     <ClInclude Include="Factory\memory_accessor_factory.h" />
     <ClInclude Include="Factory\memory_region_enumerator_factory.h" />
     <ClInclude Include="Factory\module_enumerator_factory.h" />
@@ -104,19 +104,19 @@
     <ClInclude Include="scan\scan_engine.h" />
     <ClInclude Include="scan\scan_result_formatter.h" />
     <ClInclude Include="scan\scan_result_repository.h" />
+    <ClInclude Include="scan\scan_simd_accelerate.h" />
+    <ClInclude Include="scan\scan_snapshot.h" />
+    <ClInclude Include="scan\scan_snapshot_manager.h" />
+    <ClInclude Include="utils\adaptive_cache.h" />
+    <ClInclude Include="utils\TempPathManager.h" />
+    <ClInclude Include="utils\thread_pool.h" />
     <QtMoc Include="scan\scan_result_view_model.h" />
     <QtMoc Include="scan\scan_service.h" />
-    <ClInclude Include="Scan_Snapshot_Reader.h" />
-    <ClInclude Include="SimdKernels.h" />
-    <ClInclude Include="TempPathManager.h" />
-    <ClInclude Include="thread_pool.h" />
     <ClInclude Include="type_define\address_item.h" />
     <ClInclude Include="type_define\memory_region.h" />
     <ClInclude Include="type_define\module_info.h" />
     <ClInclude Include="type_define\process_info.h" />
-    <ClInclude Include="type_define\scan_request.h" />
-    <ClInclude Include="type_define\scan_result.h" />
-    <ClInclude Include="type_define\scan_types.h" />
+    <ClInclude Include="type_define\scan_request_result_type_define.h" />
     <QtMoc Include="process_dialog.h" />
     <ClInclude Include="process_manager.h" />
     <QtMoc Include="address_list_model.h" />
