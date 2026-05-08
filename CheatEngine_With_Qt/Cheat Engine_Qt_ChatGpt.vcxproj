@@ -133,7 +133,7 @@ powershell -Command "&amp; { $src = '$(ProjectDir)'; $dest = '$(OutDir)language_
     <QtUic Include="CheatEngine_With_Qt.ui" />
   </ItemGroup>
   <ItemGroup>
-    <QtTranslation Include="translations\Translation_en.ts" />
+    <QtTranslation Include="language_translations\Translation_en.ts" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

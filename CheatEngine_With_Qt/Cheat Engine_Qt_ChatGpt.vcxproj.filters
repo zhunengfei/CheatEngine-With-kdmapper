@@ -215,7 +215,7 @@
     </QtUic>
   </ItemGroup>
   <ItemGroup>
-    <QtTranslation Include="translations\Translation_en.ts">
+    <QtTranslation Include="language_translations\Translation_en.ts">
       <Filter>utils\language</Filter>
     </QtTranslation>
   </ItemGroup>

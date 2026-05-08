@@ -279,7 +279,7 @@
     <message>
         <location filename="../MainWindow.cpp" line="84"/>
         <source>找到总地址: %1 显示地址: %2</source>
-        <translation>find address  %1  list_address%2</translation>
+        <translation>find address  %1  list_address&#x3000;&#x3000;%2</translation>
     </message>
     <message>
         <location filename="../MainWindow.cpp" line="300"/>
