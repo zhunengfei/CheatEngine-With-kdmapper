@@ -5,7 +5,6 @@
 #include "mainwindow.h"
 #include "ui_CheatEngine_With_Qt.h"
 #include "address_list_model.h"
-#include "thread_pool.h"
 #include "process_dialog.h"
 #include "process_manager.h"
 #include "scan_service.h"
@@ -681,6 +680,9 @@ void MainWindow::onScanCompleted()
     else {
         m_scanService->startAutoRefresh(200);
     }
+
+    ui->progressBar->setVisible(false);
+    statusBar()->showMessage(tr("扫描完成，找到 %1 个结果").arg(m_scanService->totalResults()), 3000);
 }
 
 // ==================== 进度变化槽 ====================
