@@ -2,6 +2,7 @@
 #include <QAbstractTableModel>
 #include "scan_data_stream_define.h"
 #include "value_provider_interface.h"
+#include <mutex>
 
 class ScanResultRepository;
 
@@ -10,47 +11,58 @@ class ScanResultRepository;
 class ScanResultViewModel : public QAbstractTableModel {
 	Q_OBJECT
 public:
-	explicit ScanResultViewModel(ScanResultRepository* repo, IValueProvider* valueProvider, QObject* parent = nullptr);
+    explicit ScanResultViewModel(ScanResultRepository* repo, IScanValueProvider* valueProvider, QObject* parent = nullptr);
 
-	// 通知 View 数据已整体变更,保留原有全量刷新（用于扫描完成等场景） 
-	void onRepositoryReplaced();
+    // --- 核心生命周期方法 ---
 
-	// 由外部（如定时器）调用，检测所有数据的变化并自动触发增量更新
-	void refreshCurrentValues();
+        // 当扫描完成或结果集完全替换时调用。此时会同步初始化所有列的缓存（Address, Prev, First）。
+    void onRepositoryReplaced();
 
-	void ensureCacheSize();
+    // 由 Service 的定时器调用。负责从内存读取最新值并更新 m_cacheCurrent。
+    // 建议优化：此函数可以增加参数，仅刷新当前 UI 可见的行范围。
+    void refreshCurrentValues();
 
-	// 通知 View 部分行更新
-	void notifyRowsModified(int minRow, int maxRow);
+    // 当用户切换显示类型（如从 Int 改为 Hex）时，刷新所有缓存的字符串。
+    void setDisplayType(ScanDataType type);
+    ScanDataType getDisplayType() const { return m_displayType; }
 
+    // --- QAbstractTableModel 接口重写 ---
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    int columnCount(const QModelIndex& parent = QModelIndex()) const override;
 
-	void setDisplayType(ScanDataType type);
-	ScanDataType getDisplayType() const { return m_displayType; }
+    // data() 现在是纯内存操作，严禁包含任何 ReadProcessMemory 或文件 IO。
+    QVariant data(const QModelIndex& index, int role) const override;
+    QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
 
-	// QAbstractTableModel 接口
-	int rowCount(const QModelIndex& parent = QModelIndex()) const override;
-	int columnCount(const QModelIndex& parent = QModelIndex()) const override;
-	QVariant data(const QModelIndex& index, int role) const override;
-	QVariant headerData(int section, Qt::Orientation, int role) const override;
-
-	uint64_t getAddress(int row) const;
-
+    // 辅助工具
+    uint64_t getAddress(int row) const ;
 
 private:
-	bool  updateRowCache(int row);               // 更新某行的缓存值
+    // 更新指定行的“当前值”缓存。返回 true 表示值发生了变化。
+    bool updateRowCache(int row);
 
-	//QString getDisplayValueForColumn(uint64_t addr, int column) const;
+    // 内部方法：根据当前 m_displayType 重新填充所有缓存列。
+    void rebuildAllCaches();
 
-	ScanResultRepository* m_repo;   // 不拥有所有权
-	IValueProvider* m_valueProvider;  // 不持有所有权
-	ScanDataType m_displayType = ScanDataType::Int32;
+    // --- 外部依赖 ---
+    ScanResultRepository* m_repo;          // 不拥有所有权
+    IScanValueProvider* m_valueProvider; // 不拥有所有权
+    ScanDataType          m_displayType = ScanDataType::Int32;
+
+    // --- 核心缓存容器 (UI 性能的关键) ---
+    // 所有的 data() 请求都直接从这些 vector 中取值，达到 O(1) 速度。
+    std::vector<std::string> m_cacheAddress;  // 列 0: 地址显示字符串 (如 "module.exe+0x123")
+    std::vector<std::string> m_cacheCurrent;  // 列 1: 实时内存值字符串
+    std::vector<std::string> m_cachePrevious; // 列 2: 上次快照值字符串
+    std::vector<std::string> m_cacheFirst;    // 列 3: 首次快照值字符串
+
+    // 缓存模块基址标记，避免在 data() 里频繁调用 resolveAddress
+    std::vector<bool>        m_cacheIsBase;
+
+    mutable std::mutex m_mutex; // 保护缓存容器，防止异步刷新时读取冲突
 
 
-	std::vector<uint64_t>         m_rowAddresses;          // 每行的内存地址
-	std::vector<std::string>      m_rowCurrentValues; // 缓存当前值用于检测变化
-
-
-	static constexpr int MAX_DISPLAY = 10000;
+	static constexpr int MAX_DISPLAY = 1000;
 	static constexpr int STRING_DISPLAY_MAX = 64;   // 字符串最多显示字节数
 	static constexpr int BYTEARRAY_DISPLAY_MAX = 32; // 字节数组最多显示字节数
 };

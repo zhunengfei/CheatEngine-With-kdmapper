@@ -2,9 +2,9 @@
 #include <string>
 #include "scan_data_stream_define.h"
 
-class IValueProvider {
+class IScanValueProvider {
 public:
-	virtual ~IValueProvider() = default;
+	virtual ~IScanValueProvider() = default;
 
 	// 获取当前内存中的值（实时），返回格式化后的字符串（UTF-8）
 	virtual std::string getCurrentValue(uint64_t address, ScanDataType type) const = 0;

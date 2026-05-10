@@ -6,7 +6,7 @@
 #include <vector>
 
 
-class SnapshotManager {
+class ProcessSnapshotManager {
 public:
     // 创建新快照并返回实体
     std::unique_ptr<ScanSnapshot> createSnapshot(const std::vector<MemoryRegion>& regions);

@@ -11,7 +11,7 @@
 //      　　　　　　　　 　   　│                  　　　　　　　　　│
 //                       　     │ - startScan()   　　　　　　　　 　│
 //      　　　　　　　　 　   　│ - cancel()       　　　　　　　　　│
-//      　　　　　　　　 　   　│ - resultModel()  　　　　　　　　　│─── > ScanResultViewModel
+//      　　　　　　　　 　   　│ - getResultViewModel()  　　　　　　　　　│─── > ScanResultViewModel
 //       　　　　　　　　     　│ - isScanning()   　　　　　　　　　│
 //      　　　　　　　　 　   　└────────┬─────────┘
 //                                                │ 内部持有
@@ -43,6 +43,7 @@
 #include "scan_data_stream_define.h"
 #include "scan_data_provider.h"
 #include "scan_result_repository.h"
+#include "scan_snapshot_manager.h"
 #include "scan_engine.h"
 
 #include <QObject>
@@ -66,7 +67,7 @@ public:
 	bool hasResults() const;
 	int  totalResults() const;
 
-	ScanResultViewModel* resultModel() const { return m_viewModel.get(); }
+	ScanResultViewModel* getResultViewModel() const { return m_viewModel.get(); }
 
 	// 自动刷新（现在仅负责触发 UI 重绘）
 	void startAutoRefresh(int intervalMs = 200);
@@ -82,11 +83,12 @@ signals:
 private:
 	void onScanFinished(ScanEngine::ScanReport pack, ScanMode mode);
 
-	std::unique_ptr<ScanDataProvider>      m_dataProvider;
-	std::unique_ptr<ScanEngine>            m_engine;
-	std::unique_ptr<ScanResultRepository>  m_repository;
-	std::unique_ptr<ScanResultViewModel>   m_viewModel;
-
+	std::unique_ptr <ProcessSnapshotManager>  m_processSnapshotManager;
+	std::unique_ptr<ScanDataProvider>         m_dataProvider;
+	std::unique_ptr<ScanEngine>               m_engine;
+	std::unique_ptr<ScanResultRepository>     m_repository;
+	std::unique_ptr<ScanResultViewModel>      m_viewModel;
+	
 
 	QTimer* m_refreshTimer;
 	QTimer* m_progressTimer = nullptr;

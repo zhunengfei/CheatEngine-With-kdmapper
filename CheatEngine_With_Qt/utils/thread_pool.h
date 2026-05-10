@@ -14,7 +14,7 @@
 class ThreadPool
 {
 public:
-    ThreadPool(size_t threads = std::thread::hardware_concurrency())
+    ThreadPool(size_t threads)
         : stop(false)
     {
         for (size_t i = 0; i < threads; ++i)

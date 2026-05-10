@@ -1,20 +1,18 @@
 #include "scan_data_provider.h"
-#include "scan_result_formatter.h"
+#include "encoding_formatter.h"
 #include "process_manager.h"
 #include <vector>
 #include <string>
 
-ScanDataProvider::ScanDataProvider(std::shared_ptr<ScanSnapshot> first,
-	std::shared_ptr<ScanSnapshot> prev,
+ScanDataProvider::ScanDataProvider(
+	ProcessSnapshotManager* processSnapshotManager,
 	ScanDataType type)
-	: m_firstSnapshot(first), m_prevSnapshot(prev), m_displayType(type) {
+	: m_displayType(type)
+	, m_processSnapshotManager(processSnapshotManager)
+{
+
 }
 
-void ScanDataProvider::updateSnapshots(std::shared_ptr<ScanSnapshot> first,
-	std::shared_ptr<ScanSnapshot> prev) {
-	m_firstSnapshot = first;
-	m_prevSnapshot = prev;
-}
 
 bool ScanDataProvider::isModuleBase(uint64_t address) const {
 	std::string dummy;
@@ -28,11 +26,11 @@ std::string ScanDataProvider::getCurrentValue(uint64_t address, ScanDataType typ
 }
 
 std::string ScanDataProvider::getPreviousValue(uint64_t address, ScanDataType type) const {
-	return readValueFromSnapshot(address, type, m_prevSnapshot);
+	return readValueFromSnapshot(address, type, m_processSnapshotManager->getPrevious());
 }
 
 std::string ScanDataProvider::getFirstValue(uint64_t address, ScanDataType type) const {
-	return readValueFromSnapshot(address, type, m_firstSnapshot);
+	return readValueFromSnapshot(address, type, m_processSnapshotManager->getFirst());
 }
 
 std::string ScanDataProvider::getAddressDisplay(uint64_t address) const {
@@ -55,17 +53,17 @@ std::string ScanDataProvider::readValueFromSnapshot(uint64_t address, ScanDataTy
 			return "---";
 		if (isStringType(type)) {
 			std::string str(reinterpret_cast<char*>(buf.data()), strnlen(reinterpret_cast<char*>(buf.data()), maxRead));
-			return ScanResultFormatter::formatString(str, type);
+			return EncodingFormatter::formatString(str, type);
 		}
 		else if (isByteArrayType(type)) {
-			return ScanResultFormatter::formatByteArray(buf.data(), maxRead);
+			return EncodingFormatter::formatByteArray(buf.data(), maxRead);
 		}
 		return "---";
 	}
 	uint64_t raw = 0;
 	if (!snapshot->readData(address, reinterpret_cast<uint8_t*>(&raw), size))
 		return "---";
-	return ScanResultFormatter::formatValue(raw, type);
+	return EncodingFormatter::formatValue(raw, type);
 }
 
 std::string ScanDataProvider::readCurrentFromMemory(uint64_t address, ScanDataType type) const {
@@ -79,15 +77,15 @@ std::string ScanDataProvider::readCurrentFromMemory(uint64_t address, ScanDataTy
 			return "---";
 		if (isStringType(type)) {
 			std::string str(reinterpret_cast<char*>(buf.data()), strnlen(reinterpret_cast<char*>(buf.data()), maxRead));
-			return ScanResultFormatter::formatString(str, type);
+			return EncodingFormatter::formatString(str, type);
 		}
 		else if (isByteArrayType(type)) {
-			return ScanResultFormatter::formatByteArray(buf.data(), maxRead);
+			return EncodingFormatter::formatByteArray(buf.data(), maxRead);
 		}
 		return "---";
 	}
 	uint64_t raw = 0;
 	if (!mem->read(address, &raw, size))
 		return "---";
-	return ScanResultFormatter::formatValue(raw, type);
+	return EncodingFormatter::formatValue(raw, type);
 }

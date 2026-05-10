@@ -129,17 +129,19 @@ public:
             // 如果有任意匹配，遍历块中的每一个元素
             if (matchBitmask != 0)
             {
-                const uint32_t elemMask = (sizeof(ScalarType) >= 4) ? 0xFFFFFFFF
-                    : ((1u << (sizeof(ScalarType) * 8)) - 1u);
-
                 for (size_t byteIndex = 0; byteIndex < simdByteWidth; byteIndex += scalarSize) {
                     uint64_t candidateAddress = baseAddress + offset + byteIndex;
-                    if (candidateAddress % effectiveAlignment != 0)
-                        continue;
+                    if (candidateAddress % effectiveAlignment != 0) continue;
 
-                    uint32_t elementBits = (matchBitmask >> byteIndex) & elemMask;
-                    if (elementBits == elemMask)
+                    // 核心修正：对于 epi8 掩码，每个元素对应的位数不同
+                    // int8: 1 bit, int16: 2 bits, int32: 4 bits, int64: 8 bits
+                    uint32_t bitsPerElement = static_cast<uint32_t>(scalarSize);
+                    uint32_t currentElemMask = (1u << bitsPerElement) - 1u;
+
+                    uint32_t elementBits = (matchBitmask >> byteIndex) & currentElemMask;
+                    if (elementBits == currentElemMask) {
                         out_matchedAddresses.push_back(candidateAddress);
+                    }
                 }
             }
         }

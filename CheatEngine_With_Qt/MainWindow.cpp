@@ -46,7 +46,7 @@ void MainWindow::setupUi() { ui->setupUi(this); }
 void MainWindow::initServices()
 {
     m_scanService = new ScanService(this);
-    m_resultModel = m_scanService->resultModel();   // 获取 ViewModel 指针
+    m_resultModel = m_scanService->getResultViewModel();   // 获取 ViewModel 指针
     addressModel = new AddressListModel(this);
 }
 

@@ -1,14 +1,12 @@
 #include "scan_result_view_model.h"
 #include "scan_result_repository.h"
-#include "scan_result_formatter.h"
+#include "encoding_formatter.h"
 #include "scan_snapshot.h"
 #include <QBrush>
 #include <QColor>
 #include <QString>
 
-
-
-ScanResultViewModel::ScanResultViewModel(ScanResultRepository* repo, IValueProvider* valueProvider, QObject* parent)
+ScanResultViewModel::ScanResultViewModel(ScanResultRepository* repo, IScanValueProvider* valueProvider, QObject* parent)
 	: QAbstractTableModel(parent)
 	, m_repo(repo)
 	, m_valueProvider(valueProvider)
@@ -16,65 +14,98 @@ ScanResultViewModel::ScanResultViewModel(ScanResultRepository* repo, IValueProvi
 
 }
 
-void ScanResultViewModel::onRepositoryReplaced()
-{
+void ScanResultViewModel::rebuildAllCaches() {
 	if (!m_repo) return;
+
+	// 1. 加锁保护缓存容器，防止定时刷新线程冲突
+	std::lock_guard<std::mutex> lock(m_mutex);
+
+	// 2. 确定显示行数，防止大数据量撑爆内存
+	size_t count = std::min(m_repo->getResultCount(), static_cast<size_t>(MAX_DISPLAY));
+
+	// 3. 预分配所有容器空间
+	m_cacheAddress.resize(count);
+	m_cacheCurrent.resize(count);
+	m_cachePrevious.resize(count);
+	m_cacheFirst.resize(count);
+	m_cacheIsBase.resize(count);
+
+	// 4. 一次性填充静态值（这些值在本次扫描会话中不会改变）
+	for (size_t i = 0; i < count; ++i) {
+		uint64_t addr = m_repo->getAddressAtIndex(i);
+
+		// 缓存地址列显示文本（涉及模块解析，IO 较重）
+		m_cacheAddress[i] = m_valueProvider->getAddressDisplay(addr);
+
+		// 缓存基址标记用于颜色高亮
+		m_cacheIsBase[i] = m_valueProvider->isModuleBase(addr);
+
+		// 从磁盘快照读取历史值并转为字符串（涉及文件 IO）
+		m_cachePrevious[i] = m_valueProvider->getPreviousValue(addr, m_displayType);
+		m_cacheFirst[i] = m_valueProvider->getFirstValue(addr, m_displayType);
+
+		// 填充初始当前值
+		m_cacheCurrent[i] = m_valueProvider->getCurrentValue(addr, m_displayType);
+	}
+}
+
+void ScanResultViewModel::setDisplayType(ScanDataType type)
+{
+	if (m_displayType == type) return; // 无变化无需更新
+	m_displayType = type;
+	rebuildAllCaches();
 	beginResetModel();
-	m_rowCurrentValues.clear();        // 清空缓存
 	endResetModel();
 }
 
 
-void ScanResultViewModel::refreshCurrentValues() {
+void ScanResultViewModel::onRepositoryReplaced() {
 	if (!m_repo) return;
-	size_t count = m_repo->getResultCount();
-	if (count == 0) return;
+	rebuildAllCaches();
+	beginResetModel();
+	endResetModel();
+}
 
-	ensureCacheSize();
+bool ScanResultViewModel::updateRowCache(int row) {
+	// 边界检查
+	if (row < 0 || row >= static_cast<int>(m_cacheCurrent.size())) return false;
 
-	int firstChanged = -1, lastChanged = -1;
-	for (size_t i = 0; i < count; ++i) {
+	uint64_t addr = m_repo->getAddressAtIndex(row);
+
+	// 从目标进程实时读取内存（涉及系统调用）
+	std::string newVal = m_valueProvider->getCurrentValue(addr, m_displayType);
+
+	// 只有当字符串发生变化时才更新，减少 UI 刷新压力
+	if (newVal != m_cacheCurrent[row]) {
+		m_cacheCurrent[row] = std::move(newVal);
+		return true;
+	}
+	return false;
+}
+
+
+void ScanResultViewModel::refreshCurrentValues() {
+	if (!m_repo || m_cacheCurrent.empty()) return;
+
+	int firstChanged = -1;
+	int lastChanged = -1;
+
+	// 遍历已缓存的行
+	for (size_t i = 0; i < m_cacheCurrent.size(); ++i) {
 		if (updateRowCache(static_cast<int>(i))) {
 			if (firstChanged == -1) firstChanged = static_cast<int>(i);
 			lastChanged = static_cast<int>(i);
 		}
 	}
+
+	// 如果有数值变动，通知视图刷新“Value”列（列索引 1）
 	if (firstChanged != -1) {
-		// 只更新当前值列（列1），也可以更新列2/3（但列2/3是快照值，不会自动变，所以只需要列1）
-		emit dataChanged(index(firstChanged, 1), index(lastChanged, 1), { Qt::DisplayRole });
+		emit dataChanged(
+			index(firstChanged, 1),
+			index(lastChanged, 1),
+			{ Qt::DisplayRole, Qt::ForegroundRole } // 也要更新颜色角色以触发红色高亮
+		);
 	}
-}
-
-void ScanResultViewModel::ensureCacheSize() {
-	size_t count = m_repo->getResultCount();
-	if (m_rowCurrentValues.size() != count) {
-		m_rowCurrentValues.resize(count);
-		// 重新填充所有缓存值
-		for (size_t i = 0; i < count; ++i) {
-			uint64_t addr = m_repo->getAddressAtIndex(i);
-			m_rowCurrentValues[i] = m_valueProvider->getCurrentValue(addr, m_displayType);
-		}
-	}
-}
-
-
-
-void ScanResultViewModel::notifyRowsModified(int firstRow, int lastRow) {
-	if (firstRow > lastRow || firstRow < 0) return;
-	// 更新缓存并发射 dataChanged 信号（列1~3，取决于需求）
-	for (int r = firstRow; r <= lastRow; ++r) {
-		updateRowCache(r);
-	}
-	emit dataChanged(index(firstRow, 1), index(lastRow, 3), { Qt::DisplayRole });
-}
-
-void ScanResultViewModel::setDisplayType(ScanDataType type) {
-	if (m_displayType == type) return;
-	m_displayType = type;
-	// 显示类型变化，需要重新计算所有当前值的显示字符串，并刷新视图
-	ensureCacheSize();  // 强制重建缓存（用新类型）
-	if (rowCount() > 0)
-		emit dataChanged(index(0, 1), index(rowCount() - 1, 1), { Qt::DisplayRole });
 }
 
 
@@ -93,52 +124,32 @@ int ScanResultViewModel::columnCount(const QModelIndex& parent) const
 
 
 QVariant ScanResultViewModel::data(const QModelIndex& index, int role) const {
-	if (!index.isValid()) return {};
+	if (!index.isValid() || index.row() >= (int)m_cacheCurrent.size()) return {};
+
 	int row = index.row();
-	int column = index.column();
-	if (row >= static_cast<int>(m_repo->getResultCount())) return {};
+	int col = index.column();
 
-	uint64_t addr = m_repo->getAddressAtIndex(row);
-
-	// 处理地址列（column 0）的显示及前景色
-	if (column == 0) {
-		if (role == Qt::DisplayRole) {
-			return QString::fromStdString(m_rowCurrentValues[row]);
-		}
-		else if (role == Qt::ForegroundRole) {
-			if (m_valueProvider->isModuleBase(addr))
-				return QBrush(Qt::green);
-			return QBrush(); // 默认颜色
-		}
-		return {};
-	}
-
-	// 处理值列（column 1,2,3）的显示
 	if (role == Qt::DisplayRole) {
-		if (column == 1) {
-			std::string val = m_valueProvider->getCurrentValue(addr, m_displayType);
-			return QString::fromStdString(val);
+		switch (col) {
+		case 0: return QString::fromStdString(m_cacheAddress[row]);
+		case 1: return QString::fromStdString(m_cacheCurrent[row]);
+		case 2: return QString::fromStdString(m_cachePrevious[row]);
+		case 3: return QString::fromStdString(m_cacheFirst[row]);
 		}
-		else if (column == 2) {
-			std::string val = m_valueProvider->getPreviousValue(addr, m_displayType);
-			return QString::fromStdString(val);
-		}
-		else if (column == 3) {
-			std::string val = m_valueProvider->getFirstValue(addr, m_displayType);
-			return QString::fromStdString(val);
-		}
-		return {};
 	}
-	else if (role == Qt::ForegroundRole && column == 1) {
-		// 当前值列：若当前值 ≠ 上一次值 且 上一次值不是 "---"，则显示红色
-		std::string cur = m_valueProvider->getCurrentValue(addr, m_displayType);
-		std::string prev = m_valueProvider->getPreviousValue(addr, m_displayType);
-		if (cur != prev && prev != "---") {
-			return QBrush(Qt::red);
+	else if (role == Qt::ForegroundRole) {
+		if (col == 0) {
+			// 这里可以通过之前缓存的标记来判断，避免调用 resolveAddress
+			uint64_t addr = m_repo->getAddressAtIndex(row);
+			if (m_valueProvider->isModuleBase(addr)) return QBrush(Qt::green);
 		}
-		return QBrush();
+		else if (col == 1) {
+			// 直接比较内存缓存字符串，极快
+			if (m_cacheCurrent[row] != m_cachePrevious[row] && m_cachePrevious[row] != "---") {
+				return QBrush(Qt::red);
+			}
+		}
 	}
-
 	return {};
 }
 
@@ -162,13 +173,4 @@ uint64_t ScanResultViewModel::getAddress(int row) const
 }
 
 
-bool  ScanResultViewModel::updateRowCache(int row)
-{
-	uint64_t addr = m_repo->getAddressAtIndex(row);
-	std::string newVal = m_valueProvider->getCurrentValue(addr, m_displayType);
-	if (newVal != m_rowCurrentValues[row]) {
-		m_rowCurrentValues[row] = std::move(newVal);
-		return true;
-	}
-	return false;
-}
+

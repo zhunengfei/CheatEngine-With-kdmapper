@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <fstream>
 
-std::unique_ptr<ScanSnapshot> SnapshotManager::createSnapshot(const std::vector<MemoryRegion>& regions) {
+std::unique_ptr<ScanSnapshot> ProcessSnapshotManager::createSnapshot(const std::vector<MemoryRegion>& regions) {
     // 1. 生成唯一的临时文件名
     std::string path = (std::filesystem::path(TempPathManager::getWorkDir()) /
         ("snapshot_" + std::to_string(GetTickCount64()) + ".bin")).string();
@@ -40,18 +40,18 @@ std::unique_ptr<ScanSnapshot> SnapshotManager::createSnapshot(const std::vector<
     return std::make_unique<ScanSnapshot>(path, std::move(index));
 }
 
-void SnapshotManager::setFirstSnapshot(std::shared_ptr<ScanSnapshot> snapshot) {
+void ProcessSnapshotManager::setFirstSnapshot(std::shared_ptr<ScanSnapshot> snapshot) {
     m_first = snapshot;
 }
 
-void SnapshotManager::setPreviousSnapshot(std::shared_ptr<ScanSnapshot> snapshot) {
+void ProcessSnapshotManager::setPreviousSnapshot(std::shared_ptr<ScanSnapshot> snapshot) {
     m_prev = snapshot;
 }
 
-std::shared_ptr<ScanSnapshot> SnapshotManager::getFirst() const { return m_first; }
-std::shared_ptr<ScanSnapshot> SnapshotManager::getPrevious() const { return m_prev; }
+std::shared_ptr<ScanSnapshot> ProcessSnapshotManager::getFirst() const { return m_first; }
+std::shared_ptr<ScanSnapshot> ProcessSnapshotManager::getPrevious() const { return m_prev; }
 
-void SnapshotManager::clear() {
+void ProcessSnapshotManager::clear() {
     // 自动清理物理文件
     if (m_first) std::filesystem::remove(m_first->path());
     if (m_prev) std::filesystem::remove(m_prev->path());

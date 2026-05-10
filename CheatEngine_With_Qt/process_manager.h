@@ -13,6 +13,7 @@
 #include "iprocess_enumerator.h"
 
 #include "memory_accessor_factory.h"
+#include "scan_data_stream_define.h"
 
 class ProcessManager
 {
@@ -30,6 +31,8 @@ public:
     
 
     std::vector<MemoryRegion> getMemoryRegions();
+    std::vector<MemoryRegion> getMemoryRegions(const ScanRequest& req);
+
     std::vector<ProcessInfo> getProcesses();
     
     // --- 地址与模块工具 ---

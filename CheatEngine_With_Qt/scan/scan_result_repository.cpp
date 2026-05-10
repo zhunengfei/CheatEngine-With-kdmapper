@@ -1,5 +1,5 @@
 #include "scan_result_repository.h"
-#include "scan_result_formatter.h"
+#include "encoding_formatter.h"
 #include "process_manager.h"
 #include <algorithm>
 

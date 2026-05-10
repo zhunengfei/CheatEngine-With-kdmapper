@@ -9,9 +9,10 @@
 
 ScanService::ScanService(QObject* parent)
 	: QObject(parent)
-	, m_engine(std::make_unique<ScanEngine>())
+	, m_processSnapshotManager(std::make_unique<ProcessSnapshotManager>())
+	, m_engine(std::make_unique<ScanEngine>(m_processSnapshotManager.get()))
 	, m_repository(std::make_unique<ScanResultRepository>())
-	, m_dataProvider(std::make_unique<ScanDataProvider>(nullptr, nullptr, ScanDataType::Int32))
+	, m_dataProvider(std::make_unique<ScanDataProvider>(m_processSnapshotManager.get(), ScanDataType::Int32))
 	, m_viewModel(std::make_unique<ScanResultViewModel>(m_repository.get(), m_dataProvider.get(), this))
 	, m_refreshTimer(new QTimer(this))
 {
@@ -63,14 +64,16 @@ void ScanService::startScan(const ScanRequest& request) {
 		this->onScanFinished(pack, mode);
 		}, Qt::QueuedConnection);
 #else
-	GlobalThreadPool::instance().enqueue([this, request, currentResults] {
-		auto pack = m_engine->execute(request, currentResults);
+	// 【修改】使用独立的线程运行 execute，不占用线程池名额
+	std::thread([this, request, currentResults]() {
+		auto pack = m_engine->execute(request, currentResults); // 内部会调用 dispatchScan
 
-		// 任务结束，切回 UI 线程同步仓库与 ViewModel
+		// 任务结束，切回 UI 线程同步
 		QMetaObject::invokeMethod(this, [this, pack, mode = request.mode] {
 			this->onScanFinished(pack, mode);
 			}, Qt::QueuedConnection);
-		});
+		}).detach();// 这里的管理线程可以安全阻塞，因为它不属于 GlobalThreadPool,GlobalThreadPool里的线程会被计算密集的task占满，使用同一个GlobalThreadPool会发生线程池饥饿
+
 #endif // DEBUG
 
 }
@@ -98,7 +101,11 @@ bool ScanService::isScanning() const
 
 bool ScanService::hasResults() const
 {
-	return m_repository->getResultCount() > 0 || (m_expectEmptyResults && m_scanning.load());
+	if (m_scanning.load() && m_expectEmptyResults) return true;
+
+	// 扫描结束后，只要仓库里有地址，就认为成功
+	// 在修改了 taskFirstScan 后，UnknownInitial 也会产生大量地址
+	return m_repository->getResultCount() > 0;
 }
 
 int ScanService::totalResults() const
@@ -144,7 +151,6 @@ void ScanService::onScanFinished(ScanEngine::ScanReport pack, ScanMode mode) {
 	}
 
 	//m_repository->setMetadata(report.metadata);
-	m_dataProvider->updateSnapshots(pack.firstSnapshot, pack.previousSnapshot);
 	m_dataProvider->setDisplayType(pack.dataType);
 	m_viewModel->setDisplayType(pack.dataType);
 

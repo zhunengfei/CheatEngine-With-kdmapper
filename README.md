@@ -1,5 +1,5 @@
 # Cheat-Engine-with-kdmapper
-1、Attempt to rewrite the Cheat Engine Windows framework using Qt,may its a big project that take a long time to finish
+1、Using the Qt framework, and leveraging textbook-level, modern software engineering software architecture, we will refactor the basic functionalities of the CE cross-platform platform for 64-bit processors
 
 2、DBK Driver incremental development based on kdmapper (finished)
 
@@ -11,18 +11,21 @@ Chinese commemt:
 
 1、本项目基于两个著名黑客项目增量开发 通过kdmapper手动映射DBK驱动，并重构DBK原DeviceIoControl方法与Cheat Engine的通讯机制，绕过微软签名
 
-2、尝试使用Qt框架，重构CE在Windows平台 amd64 处理器基本功能，本人讨厌pascal，还有lua、java等编程语言，因lazarus 的TForm 特征被各大游戏封禁，CheatEngine作为pascal编程语言相关特征已经无法满足游戏反作弊的要求， 这个重构项目会持续非常久，欢迎大家一起开发，目前重构了界面功能，后续
-会逐渐增加原pascal编程语言的其他功能，PS: 日积月累
+2、使用Qt框架，以教科书级别，现代软件工程软件架构，重构CE跨平台平台 64位 处理器基本功能
 
+3、涵盖计算机行业最广最深经典理论应用实践，计算密集型高并发线程池、线程死锁、线程饥渴、内存硬盘缓存优化、CPU缓存分片优化，二进制SIMD解码加速，系统内核原理
+
+
+(本人讨厌pascal，还有lua、java等编程语言，因lazarus 的TForm 特征被各大游戏封禁，CheatEngine作为pascal编程语言相关特征已经无法满足游戏反作弊的要求， 这个重构项目会持续非常久，欢迎大家一起开发，目前重构了界面功能，后续会逐渐增加原pascal编程语言的其他功能，PS: 日积月累)
 
 我的bilibili主页 https://space.bilibili.com/131403708
 
 version:2026/5/3
 
 
-Qt重构初版 Cheat Engine  实现了首次扫描、下一次扫描、核心磁盘缓存、扫描引擎、内存枚举
+Qt重构初版 Cheat Engine  实现了主界面UI、核心磁盘缓存、扫描引擎、内存枚举，进程管理抽象层
 
-AI 辅助开发和遇到的问题链接
+AI 辅助开发和遇到的问题调试链接（早期参考）
 
 https://chat.deepseek.com/share/dwx8by5y1aop9tcp83
 
@@ -33,11 +36,13 @@ https://chatgpt.com/g/g-p-69f130f821608191b7f8898d76d6cf87-cheat-engine/project
 
 特点
 
-1、教科书级别，现代工程级别软件工程架构，Scan层标准输入输出流，高内聚、低耦合架构，极高的代码可读性，可维护性
 
-2、海量数据、高并发、线程安全，内存优化策略、多线程局部TLS，完美的UI异步架构再多条目的地址内存拷贝也不会导致UI卡顿
 
-3、自适应磁盘扫描缓冲，即使再多的地址条目也不会大量占用内存
+1、教科书级别，现代软件工程软件架构，Scan层标准输入输出流，高内聚、低耦合架构，极高的代码可读性，可维护性
+
+2、海量数据、高并发线程安全，线程池，内存优化策略、多线程局部TLS，完美的UI异步架构再多条目的地址内存拷贝也不会导致UI卡顿
+
+3、自适应内存磁盘扫描缓冲，即使再多的地址条目也不会大量占用内存
 
 4、反作弊安全，规避官方版Cheat Engine 的lazarus 架构TForm、和一些pascal语言库，应用层不会出问题
 
@@ -60,50 +65,6 @@ C++代码编译模式MDd、和MD (注意不要使用 MTd、MT的编译模式，会和Qt库冲突，导致异常
 扫描架构图
 
 
-
-    ┌───────────────────────────────────────────┐
-    │       上层(mainwindow/其他)                │
-    │                                           │
-    │只依赖 scanservice 和 scanresultviewmodel   │
-    └────────────────────┬──────────────────────┘
-                         │
-                         ▼
-               ┌──────────────────┐
-               │   scanservice                      │(门面 + 线程调度)
-               │                                    │
-               │ - startscan()                      │
-               │ - cancel()                         │
-               │ - resultmodel()                    │─── > scanresultviewmodel
-               │ - isscanning()                     │
-               └────────┬─────────┘
-                        │ 内部持有
-        ┌───────────────┼────────────────────────┐
-返回结果 │               │                        │
- 纯计算  ▼               ▼                        ▼
-┌─────────────┐  ┌──────────────────────┐  ┌─────────────────────┐
-│ scanengine               │  │ scanresultrepository │  │ scanresultviewmodel │
-│  excute()                │  │   replaceallresults()│  │    data()           │ 格式化显示
-│  cancel()                │  │   setsnapshots()     │  │ ondeltaapplied()    │ 
-│                          │  │    resultcount()     │  │                     │
-└─────────────┘  └──────────────────────┘  └─────────────────────┘
-       │                 线程安全存储                               
-       ▼(仅使用)           快照、增量更新
-┌───────────────┐
-│processmanage                 │
-│ memory()                     │(进程抽象层，读取进程内存，静态工具)
-└───────────────┘
-       │
-       ▼(抽象接口使用)
-┌────────────────┐
-│imemoryaccessor                 │
-│                                │
-│ read()                          (提供内存访问结构接口，静态工具)
-└────────────────┘
-
-
-
-
-<img width="642" height="548" alt="image" src="https://github.com/user-attachments/assets/5ab3766c-08bb-4c9d-8cd6-2248a60a4694" />
 
 <img width="851" height="876" alt="image" src="https://github.com/user-attachments/assets/c6c38e76-0bef-4efe-a925-7262ba8acb13" />
 

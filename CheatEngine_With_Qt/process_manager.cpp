@@ -30,6 +30,17 @@ std::vector<MemoryRegion> ProcessManager::getMemoryRegions()
 	return regions;
 }
 
+std::vector<MemoryRegion> ProcessManager::getMemoryRegions(const ScanRequest& req)
+{
+	std::vector<MemoryRegion> regions;
+	if (m_pid != 0 && m_regionEnumerator) {
+		// 将请求传递给枚举器
+		regions = m_regionEnumerator->enumerate(req);
+	}
+	return regions;
+}
+
+
 std::vector<ProcessInfo> ProcessManager::getProcesses()
 {
 	std::vector<ProcessInfo> processes;
