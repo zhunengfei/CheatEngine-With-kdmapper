@@ -107,7 +107,7 @@ void Add_Or_Change_Address_Dialog::initPointerCheckBox()
 		}
 	);
 
-	connect(Add_Or_Change_Address_ui->pushButton_2_delete_offset, &QPushButton::clicked, [=](bool clicked)
+	connect(Add_Or_Change_Address_ui->pushButton_delete_offset, &QPushButton::clicked, [=](bool clicked)
 		{
 			if (offset_count > 1)
 			{

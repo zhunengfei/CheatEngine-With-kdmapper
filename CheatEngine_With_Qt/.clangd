@@ -16,3 +16,13 @@ CompileFlags:
     - "-fms-compatibility"
     - "-fms-extensions"
     - "-fdelayed-template-parsing"
+    # ⚡ 关键：MSVC 预定义宏（clangd 没有 compile_commands.json 时必需）
+    - "-DUNICODE"
+    - "-D_UNICODE"
+    - "-DWIN32"
+    - "-D_WIN32"
+    - "-DNDEBUG"
+    - "-D_WINDOWS"
+    - "-DQT_WIDGETS_LIB"
+    - "-DQT_CORE_LIB"
+    - "-DQT_GUI_LIB"

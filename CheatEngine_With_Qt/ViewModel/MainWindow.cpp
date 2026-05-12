@@ -4,6 +4,8 @@
 #include "ui_CheatEngine_With_Qt.h"
 // #include "ViewModel\Add_Or_Change_Address_Dialog.h"
 #include "ViewModel\address_list_model.h"
+#include "ViewModel\type_delegate.h"
+#include "ViewModel\display_mode_delegate.h"
 #include "ViewModel\process_dialog.h"
 #include "process\process_manager.h"
 #include "scan\scan_service.h"
@@ -99,6 +101,7 @@ void MainWindow::setupScanResultView()
     scanResultView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Interactive);
     scanResultView->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     scanResultView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    scanResultView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     tabLayout->addWidget(scanResultView);
 }
 
@@ -112,6 +115,41 @@ void MainWindow::replaceAddressTable()
         addressView->setModel(addressModel);
         addressView->setSelectionBehavior(QAbstractItemView::SelectRows);
         addressView->setSelectionMode(QAbstractItemView::SingleSelection);
+
+        addressView->horizontalHeader()->setStretchLastSection(false);
+        // 所有列默认按比例拉伸填满整个视图宽度，同时允许用户拖动改变单列宽度
+        addressView->horizontalHeader()->setMinimumSectionSize(40);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColFrozen, QHeaderView::Stretch);
+        addressView->setColumnWidth(AddressListModel::ColFrozen, 50);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColDescription, QHeaderView::Stretch);
+        addressView->setColumnWidth(AddressListModel::ColDescription, 120);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColAddress, QHeaderView::Interactive);
+        addressView->setColumnWidth(AddressListModel::ColAddress, 150);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColValue, QHeaderView::Interactive);
+        addressView->setColumnWidth(AddressListModel::ColValue, 150);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColType, QHeaderView::Stretch);
+        addressView->setColumnWidth(AddressListModel::ColType, 80);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColHex, QHeaderView::Stretch);
+        addressView->setColumnWidth(AddressListModel::ColHex, 60);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColSigned, QHeaderView::Stretch);
+        addressView->setColumnWidth(AddressListModel::ColSigned, 80);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColLength, QHeaderView::Stretch);
+        addressView->setColumnWidth(AddressListModel::ColLength, 70);
+        // 启用交互式拉伸：用户拖动某列后，该列自动转为 Interactive，其余列按新宽度重新 Stretch 填充
+        
+
+        // 为 Type 列设置下拉框委托
+        TypeDelegate* typeDelegate = new TypeDelegate(addressView);
+        addressView->setItemDelegateForColumn(AddressListModel::ColType, typeDelegate);
+
+        // 为 Hex 列设置自定义委托
+        HexDelegate* hexDelegate = new HexDelegate(addressView);
+        addressView->setItemDelegateForColumn(AddressListModel::ColHex, hexDelegate);
+
+        // 为 Signed 列设置自定义委托
+        SignedDelegate* signedDelegate = new SignedDelegate(addressView);
+        addressView->setItemDelegateForColumn(AddressListModel::ColSigned, signedDelegate);
+
         vbox->addWidget(addressView);
     }
 }
@@ -125,11 +163,26 @@ void MainWindow::initTimers()
         auto mem = ProcessManager::instance().memory();
         if (!mem) return;
         for (auto& item : items) {
-            if (item.frozen)
-                mem->write(item.address, &item.value, sizeof(item.value));
+            if (item.frozen) {
+                if (isStringValueType(item.type) || isByteArrayValueType(item.type)) {
+                    if (!item.buffer.empty())
+                        mem->write(item.address, item.buffer.data(), item.buffer.size());
+                } else {
+                    mem->write(item.address, &item.rawValue, valueTypeSize(item.type));
+                }
+            }
         }
         });
     freezeTimer->start(500);
+
+    addressListRefreshTimer = new QTimer(this);
+    connect(addressListRefreshTimer, &QTimer::timeout, this, [this]() {
+        if (!m_attachedToProcess) return;
+        auto mem = ProcessManager::instance().memory();
+        if (mem)
+            addressModel->refreshValues(mem);
+        });
+    addressListRefreshTimer->start(300);
 
     healthTimer = new QTimer(this);
     connect(healthTimer, &QTimer::timeout, this, [this]() {
@@ -240,6 +293,12 @@ void MainWindow::connectSignals()
 
     connect(scanResultView, &QTableView::doubleClicked,
         this, &MainWindow::onDoubleClickScanResult);
+
+    connect(addressView, &QTableView::doubleClicked,
+        this, &MainWindow::onDoubleClickAddressList);
+
+    connect(ui->pushButton_copy_all_scan_address_to_address_list, &QPushButton::clicked,
+        this, &MainWindow::onCopySelectedToAddressList);
 
     connect(ui->pushButton_delete_all_address, &QPushButton::clicked, this, [this]() {
         addressModel->clear();
@@ -723,18 +782,125 @@ void MainWindow::onProgressChanged(int completed, int total)
     statusBar()->showMessage(QString(tr("正在扫描: %1% (区域 %2 / %3)")).arg(percent, 0, 'f', 1).arg(completed).arg(total));
 }
 
-// ==================== 双击添加地址 ====================
-void MainWindow::onDoubleClickScanResult(const QModelIndex& index)
+// ==================== 双击 / 按钮 → 批量复制选中行到地址列表 ====================
+void MainWindow::addSelectedScanRowsToAddressList()
 {
     if (!ProcessManager::instance().memory()) return;
 
-    uint64_t addr = m_resultModel->getAddress(index.row());
-    if (addr == 0) return;
+    auto selModel = scanResultView->selectionModel();
+    if (!selModel || !selModel->hasSelection()) return;
 
-    uint64_t val = 0;
-    ProcessManager::instance().memory()->read(addr, &val, sizeof(val));
-    QString desc = QString(tr("地址 0x%1")).arg(addr, 0, 16);
-    addressModel->addItem(addr, desc, val);
+    // 获取所有选中行的索引（QModelIndexList）
+    QModelIndexList selectedRows = selModel->selectedRows();
+    if (selectedRows.isEmpty()) return;
+
+    // 收集地址和显示文本
+    std::vector<uint64_t> addresses;
+    std::vector<std::string> addressTexts;
+    addresses.reserve(selectedRows.size());
+    addressTexts.reserve(selectedRows.size());
+
+    ScanDataType displayType = m_resultModel->getDisplayType();
+
+    for (const QModelIndex& rowIdx : selectedRows) {
+        uint64_t addr = m_resultModel->getAddress(rowIdx.row());
+        if (addr == 0) continue;
+
+        addresses.push_back(addr);
+
+        // 从 ViewModel 获取地址列显示文本（如 "module.dll+0x123"）
+        QModelIndex addrColIdx = m_resultModel->index(rowIdx.row(), 0);
+        QString disp = m_resultModel->data(addrColIdx, Qt::DisplayRole).toString();
+        addressTexts.push_back(disp.toStdString());
+    }
+
+    if (addresses.empty()) return;
+
+    addressModel->addItemsFromScanResults(addresses, addressTexts, displayType);
+}
+
+void MainWindow::onDoubleClickScanResult(const QModelIndex& index)
+{
+    Q_UNUSED(index);
+    addSelectedScanRowsToAddressList();
+}
+
+void MainWindow::onCopySelectedToAddressList()
+{
+    addSelectedScanRowsToAddressList();
+}
+
+// ==================== 地址列表双击 → 仅 Address 列弹编辑对话框 ====================
+void MainWindow::onDoubleClickAddressList(const QModelIndex& index)
+{
+    if (!index.isValid() || !addressModel) return;
+
+    int col = index.column();
+    // Type 列已经有下拉框委托进行行内编辑，不需要弹框
+    // Description 列已经有行内编辑
+    // Frozen 列有复选框
+    // Value 列已经有行内编辑
+    // DisplayMode 列已经有 CheckBox/ComboBox 委托
+    // Length 列已经有行内编辑（字符串/字节数组）
+    // 只有 Address 列才弹出详细编辑对话框
+    if (col != AddressListModel::ColAddress) return;
+
+    int row = index.row();
+    if (row < 0 || row >= addressModel->items().size()) return;
+
+    const auto& item = addressModel->items()[row];
+
+    QString addrStr = QString("0x%1").arg(item.address, 16, 16, QChar('0'));
+
+    // 构造类型字符串
+    QString typeStr;
+    switch (item.type) {
+    case ValueType::Int8:      typeStr = "Byte"; break;
+    case ValueType::Int16:     typeStr = "2 Bytes"; break;
+    case ValueType::Int32:     typeStr = "4 Bytes"; break;
+    case ValueType::Int64:     typeStr = "8 Bytes"; break;
+    case ValueType::Float:     typeStr = "Float"; break;
+    case ValueType::Double:    typeStr = "Double"; break;
+    case ValueType::String:    typeStr = "String"; break;
+    case ValueType::ByteArray: typeStr = "Byte Array"; break;
+    default:                   typeStr = "Int"; break;
+    }
+
+    // 构造显示模式字符串
+    QString displayModeStr;
+    if (isNumericType(item.type)) {
+        QStringList parts;
+        if (item.hexDisplay) parts << "Hex";
+        if (item.signedDisplay && isIntegerType(item.type)) parts << "Signed";
+        displayModeStr = parts.isEmpty() ? "Dec" : parts.join("|");
+    } else if (isStringValueType(item.type)) {
+        switch (item.encoding) {
+        case StringEncoding::ASCII: displayModeStr = "ASCII"; break;
+        case StringEncoding::UTF8:  displayModeStr = "UTF-8"; break;
+        case StringEncoding::UTF16: displayModeStr = "UTF-16"; break;
+        }
+    } else if (isByteArrayValueType(item.type)) {
+        displayModeStr = item.hexDisplay ? "Hex" : "Raw";
+    }
+
+    // 构造长度信息
+    QString lengthStr;
+    if (isNumericType(item.type)) {
+        lengthStr = QString::number(valueTypeSize(item.type)) + " bytes";
+    } else if (isStringValueType(item.type) || isByteArrayValueType(item.type)) {
+        int len = item.stringLength > 0 ? item.stringLength : static_cast<int>(item.buffer.size());
+        lengthStr = QString::number(len) + " bytes";
+    }
+
+    QString msg = tr("地址: %1\n描述: %2\n当前值: %3\n类型: %4\n显示模式: %5\n长度: %6\n\n提示: 所有列均支持单击行内编辑")
+                      .arg(addrStr)
+                      .arg(item.description)
+                      .arg(item.formattedValue())
+                      .arg(typeStr)
+                      .arg(displayModeStr)
+                      .arg(lengthStr);
+
+    QMessageBox::information(this, tr("地址详情"), msg);
 }
 
 // ==================== 进程退出与重置 ====================

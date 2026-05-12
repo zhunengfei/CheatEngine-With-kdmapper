@@ -1,11 +1,9 @@
-#include "process_manager.h"
+#include "process\process_manager.h"
 #include "Factory\memory_accessor_factory.h"
 #include "Factory\module_enumerator_factory.h"
 #include "Factory\memory_region_enumerator_factory.h"
 #include "Factory\process_enumerator_factory.h"
-#include "Factory\process_memory_snapshot_factory.h"
 
-#include <algorithm>
 
 ProcessManager& ProcessManager::instance()
 {

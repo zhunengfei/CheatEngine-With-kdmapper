@@ -25,7 +25,7 @@ struct UiContext {
     bool isStructureMode = false;
     bool isAllMode = false;
 
-    int  inputFieldsNeeded = 1;     // 0, 1, 2
+    int  inputFieldsNeeded = 1;     // 0, 1, 2 扫描值输入
     bool showHex = false;
     bool showFastScan = false;
     bool showFastScanOptions = false;
@@ -54,6 +54,7 @@ struct UiContext {
 class ScanService;
 class ScanResultViewModel;
 class AddressListModel;
+class TypeDelegate;
 
 class MainWindow : public QMainWindow
 {
@@ -122,6 +123,7 @@ private:
     QTableView* addressView = nullptr;
 
     QTimer* freezeTimer = nullptr;
+    QTimer* addressListRefreshTimer = nullptr;
     QTimer* healthTimer = nullptr;
 
     std::atomic<bool> m_isScanning = false;
@@ -138,9 +140,14 @@ private slots:
     void onNextScan();
     void updateScanTypeComboBox();
     void onDoubleClickScanResult(const QModelIndex& index);
+    void onDoubleClickAddressList(const QModelIndex& index);
+    void onCopySelectedToAddressList();
     void onScanCompleted();
     void onProgressChanged(int completed, int total);
 
     void onLanguageChanged(int index);
     void refreshDynamicTexts();
+
+    /// 批量将选中的扫描行添加到地址列表（内部方法）
+    void addSelectedScanRowsToAddressList();
 };

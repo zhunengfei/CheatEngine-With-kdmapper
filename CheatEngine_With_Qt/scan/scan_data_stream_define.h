@@ -62,7 +62,8 @@ inline size_t scanDataTypeSize(ScanDataType t) {
     case ScanDataType::Utf16String: return 0;
     case ScanDataType::ByteArray:   return 0;
     case ScanDataType::All:         return 8; // 按最大长度读取以兼容所有子类型
-    default: return 0;
+    case ScanDataType::Structure:   return 0;
+    default:                        return 0;
     }
 }
 

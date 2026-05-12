@@ -56,8 +56,3 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
-
-echo.
-echo [%BUILD_TYPE%] 构建成功! 按任意键关闭此窗口，然后按 F5 调试启动程序。
-echo.
-::pause
