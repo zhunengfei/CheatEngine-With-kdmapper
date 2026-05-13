@@ -3,6 +3,8 @@
 #include "scan/scan_data_stream_define.h"
 #include "interface/iscan_value_provider.h"
 #include <mutex>
+#include <vector>
+#include <utility> // pair
 
 class ScanResultRepository;
 
@@ -19,12 +21,23 @@ public:
     void onRepositoryReplaced();
 
     // 由 Service 的定时器调用。负责从内存读取最新值并更新 m_cacheCurrent。
-    // 建议优化：此函数可以增加参数，仅刷新当前 UI 可见的行范围。
     void refreshCurrentValues();
 
-    // 当用户切换显示类型（如从 Int 改为 Hex）时，刷新所有缓存的字符串。
+    // 当用户切换显示类型时，刷新所有缓存的字符串。
     void setDisplayType(ScanDataType type);
     ScanDataType getDisplayType() const { return m_displayType; }
+
+    // ★ Hex 显示模式控制（转发到 provider 并重建缓存）
+    void setHexDisplay(bool on);
+    bool isHexDisplay() const { return m_valueProvider ? m_valueProvider->isHexDisplay() : false; }
+
+    // ---- 模块过滤 ----
+    /// @brief 设置模块地址范围过滤，仅显示该范围内的地址
+    void setModuleFilter(uint64_t base, uint64_t size);
+    /// @brief 清除模块过滤，显示所有结果
+    void clearModuleFilter();
+    /// @brief 获取当前过滤范围 (base, size)，base=0 表示无过滤
+    std::pair<uint64_t, uint64_t> getModuleFilter() const { return { m_filterModuleBase, m_filterModuleSize }; }
 
     // --- QAbstractTableModel 接口重写 ---
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -37,17 +50,29 @@ public:
     // 辅助工具
     uint64_t getAddress(int row) const ;
 
+signals:
+    /// @brief 当过滤结果总数变化时发出（用于更新显示标签）
+    void filteredCountChanged(int shown, int total);
+
 private:
-    // 更新指定行的“当前值”缓存。返回 true 表示值发生了变化。
+    // 更新指定行的"当前值"缓存。返回 true 表示值发生了变化。
     bool updateRowCache(int row);
 
-    // 内部方法：根据当前 m_displayType 重新填充所有缓存列。
+    // 内部方法：根据当前 m_displayType 和模块过滤重新填充所有缓存列。
     void rebuildAllCaches();
+    /// @brief 重建过滤索引（根据 m_filterModuleBase/Size 过滤所有结果）
+    void rebuildFilteredIndices();
 
     // --- 外部依赖 ---
     ScanResultRepository* m_repo;          // 不拥有所有权
     IScanValueProvider* m_valueProvider; // 不拥有所有权
     ScanDataType          m_displayType = ScanDataType::Int32;
+
+    // --- 模块过滤 ---
+    uint64_t m_filterModuleBase = 0;
+    uint64_t m_filterModuleSize = 0;
+    /// 过滤后的索引映射：m_filteredIndices[显示行] = 仓库中的真实索引
+    std::vector<size_t> m_filteredIndices;
 
     // --- 核心缓存容器 (UI 性能的关键) ---
     // 所有的 data() 请求都直接从这些 vector 中取值，达到 O(1) 速度。

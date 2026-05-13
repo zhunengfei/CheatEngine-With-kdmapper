@@ -53,8 +53,8 @@ void ScanEngine::dispatchScan(const ScanRequest& request, const std::vector<Scan
 // 			taskFirstScan<T>(request, memory_region_section, currentSnap, outCache);
 //  // _DEBUG
 // #else
-			futures.push_back(GlobalThreadPool::instance().enqueue([this, request, memory_region_section, outCache] {
-				taskFirstScan<T>(request, memory_region_section,  outCache);
+			futures.push_back(GlobalThreadPool::instance().enqueue([this, request, memory_region_section, currentSnap, outCache] {
+				taskFirstScan<T>(request, memory_region_section, currentSnap, outCache);
 				}));
 // #endif
 		}
@@ -88,12 +88,10 @@ void ScanEngine::dispatchScan(const ScanRequest& request, const std::vector<Scan
 
 template <typename T>
 void ScanEngine::taskFirstScan(const ScanRequest& request, MemoryRegion region,
+	std::shared_ptr<IProcessMemorySnapshot> currentSnap,
 	std::shared_ptr<AdaptiveCachePool<ScanResult>> outCache)
 {
 	if (m_cancel.load()) return;
-
-	auto mem = ProcessManager::instance().memory();
-	if (!mem) { m_progress.fetch_add(1); return; }
 
 	// ── 字符串 / 字节数组 首次扫描（仅 T=uint8_t 时编译，独立 Chunk 循环）──
 	if constexpr (sizeof(T) == 1) {
@@ -118,15 +116,15 @@ void ScanEngine::taskFirstScan(const ScanRequest& request, MemoryRegion region,
 			bool firstChunk = true;
 			for (size_t off = 0; off < region.size && !m_cancel.load(); off += chunkSize) {
 				size_t toRead = (std::min)(chunkSize + (firstChunk ? 0 : overlap), region.size - off);
-				if (!mem->read(region.base + off, memBuf.data(), toRead)) continue;
+				// 从内存快照 snapshot 中读取数据，而非直接读进程内存
+				if (!currentSnap->readData(region.base + off, memBuf.data(), toRead)) continue;
 				std::vector<uint64_t> hits;
 				// 非首 chunk 时，只提交 chunkSize 之后的新数据（避免重复匹配 overlap 区域）
-				size_t searchLen = firstChunk ? toRead : chunkSize;
 				if (isStringType(request.dataType)) {
 					if (auto* sp = std::get_if<StringParams>(&request.params)) {
 						std::vector<uint8_t> searchView(memBuf.begin(), memBuf.begin() + toRead);
 						performStringSearch(searchView, region.base + off, *sp, request.dataType, hits);
-						// 去重：滤掉 overlap 区域中的匹配（只保留 searchLen 之后的）
+						// 去重：滤掉 overlap 区域中的匹配（只保留 chunkSize 之后的）
 						hits.erase(std::remove_if(hits.begin(), hits.end(), [&](uint64_t addr) {
 							return !firstChunk && addr < region.base + off + overlap;
 						}), hits.end());
@@ -151,23 +149,53 @@ void ScanEngine::taskFirstScan(const ScanRequest& request, MemoryRegion region,
 		}
 	}
 
-	// ── 数值类型扫描（原有逻辑，完全不动）────────────────────
+	// ── 数值类型首次扫描：使用 SIMD 从 snapshot 中读取并匹配 ──
 	if (region.size < sizeof(T)) { m_progress.fetch_add(1); return; }
 
 	const size_t step = request.alignment;
-	const size_t chunkSize = 64 * 1024; // 64KB Chunk
+	const size_t chunkSize = 64 * 1024; // 64KB 分块
 	std::vector<uint8_t> memBuf(chunkSize + sizeof(T));
 	std::vector<uint8_t> targetBuf(chunkSize + sizeof(T)); // 用于 SIMD 比较的目标填充块
 	std::vector<ScanResult> batchResults;
 	batchResults.reserve(2048);
 
 	T v1 = 0, v2 = 0;
+		const bool isFloatApprox = std::is_floating_point_v<T>
+		&& request.containApproximateValue
+		&& request.firstType == ScanType::ExactValue;
+
 	if (auto* p = std::get_if<ValueParams>(&request.params)) {
-		v1 = static_cast<T>(p->value1);
-		v2 = static_cast<T>(p->value2);
+		if constexpr (std::is_floating_point_v<T>) {
+			T target;
+			std::memcpy(&target, &p->value1, sizeof(T));
+			if (isFloatApprox) {
+				// ★ 勾选了"包含近似值" → 使用四舍五入容差 ±0.5（搜 520 时匹配 519.5 ~ 520.5）
+				constexpr T epsilon = static_cast<T>(0.5);
+				T lo = target - epsilon;
+				T hi = target + epsilon;
+				std::memcpy(&v1, &lo, sizeof(T));
+				std::memcpy(&v2, &hi, sizeof(T));
+			} else {
+				// 未勾选近似值 / GreaterThan/LessThan/Between → 取精确位值
+				std::memcpy(&v1, &target, sizeof(T));
+				if (request.firstType == ScanType::Between) {
+					T tmp;
+					std::memcpy(&tmp, &p->value2, sizeof(T));
+					std::memcpy(&v2, &tmp, sizeof(T));
+				}
+			}
+		} else {
+			std::memcpy(&v1, &p->value1, sizeof(T));
+			if (request.firstType == ScanType::Between)
+				std::memcpy(&v2, &p->value2, sizeof(T));
+		}
 	}
 
-	if (request.firstType != ScanType::UnknownInitial && request.firstType != ScanType::Between) {
+	// 填充 targetBuf（浮点数含近似值 ExactValue 走标量区间，不需要 SIMD 目标块）
+	const bool needTargetBuf = !isFloatApprox
+		&& request.firstType != ScanType::UnknownInitial
+		&& request.firstType != ScanType::Between;
+	if (needTargetBuf) {
 		for (size_t i = 0; i < targetBuf.size(); i += sizeof(T))
 			std::memcpy(targetBuf.data() + i, &v1, sizeof(T));
 	}
@@ -175,15 +203,18 @@ void ScanEngine::taskFirstScan(const ScanRequest& request, MemoryRegion region,
 	for (size_t baseOffset = 0; baseOffset < region.size; baseOffset += chunkSize) {
 		if (m_cancel.load()) break;
 		size_t toRead = std::min(chunkSize, region.size - baseOffset);
-		if (!mem->read(region.base + baseOffset, memBuf.data(), toRead)) continue;
+		// 从内存快照 snapshot 中读取数据，而非直接读进程内存
+		if (!currentSnap->readData(region.base + baseOffset, memBuf.data(), toRead)) continue;
 
 		if (request.firstType == ScanType::UnknownInitial) {
+			// 未知初始值：记录该区域内所有对齐地址
 			for (size_t off = 0; off + sizeof(T) <= toRead; off += step) {
 				batchResults.push_back({ region.base + baseOffset + off });
 				if (batchResults.size() >= 1024) { outCache->push_back_batch(batchResults); batchResults.clear(); }
 			}
 		}
-		else if (request.firstType == ScanType::ExactValue || request.firstType == ScanType::GreaterThan || request.firstType == ScanType::LessThan) {
+		else if (!isFloatApprox && (request.firstType == ScanType::ExactValue || request.firstType == ScanType::GreaterThan || request.firstType == ScanType::LessThan)) {
+			// 使用 SIMD 加速，从 snapshot 数据中批量匹配
 			SimdOp op = SimdOp::Equal;
 			if (request.firstType == ScanType::GreaterThan) op = SimdOp::Greater;
 			else if (request.firstType == ScanType::LessThan) op = SimdOp::Less;
@@ -198,6 +229,7 @@ void ScanEngine::taskFirstScan(const ScanRequest& request, MemoryRegion region,
 			}
 		}
 		else {
+			// Between 类型：标量扫描
 			for (size_t off = 0; off + sizeof(T) <= toRead; off += step) {
 				T curVal;
 				std::memcpy(&curVal, memBuf.data() + off, sizeof(T));
@@ -225,8 +257,29 @@ void ScanEngine::taskNextScan(const ScanRequest& request,
 	auto firstSnap = m_processSnapshotManager->getFirstProcessMemeorySnapshot();
 
 	auto* p = std::get_if<ValueParams>(&request.params);
-	T v1 = p ? static_cast<T>(p->value1) : 0;
-	T v2 = p ? static_cast<T>(p->value2) : 0;
+	T v1 = 0, v2 = 0;
+	if (p) {
+		if constexpr (std::is_floating_point_v<T>) {
+			T target;
+			std::memcpy(&target, &p->value1, sizeof(T));
+			const bool useApprox = request.containApproximateValue
+				&& (request.nextType == NextScanType::Equal || request.nextType == NextScanType::NotEqual);
+			if (useApprox) {
+				// ★ 勾选了"包含近似值" → 使用四舍五入容差 ±0.5（搜 520 时匹配 519.5 ~ 520.5）
+				constexpr T epsilon = static_cast<T>(0.5);
+				T lo = target - epsilon;
+				T hi = target + epsilon;
+				std::memcpy(&v1, &lo, sizeof(T));
+				std::memcpy(&v2, &hi, sizeof(T));
+			} else {
+				std::memcpy(&v1, &target, sizeof(T));
+				std::memcpy(&v2, &p->value2, sizeof(T));
+			}
+		} else {
+			std::memcpy(&v1, &p->value1, sizeof(T));
+			std::memcpy(&v2, &p->value2, sizeof(T));
+		}
+	}
 
 	for (const auto& res : oldBatch) {
 		if (m_cancel.load()) break;
@@ -265,8 +318,22 @@ void ScanEngine::taskNextScan(const ScanRequest& request,
 
 		bool match = false;
 		switch (request.nextType) {
-		case NextScanType::Equal:     match = (curVal == v1); break;
-		case NextScanType::NotEqual:  match = (curVal != v1); break;
+		case NextScanType::Equal:
+			if constexpr (std::is_floating_point_v<T>) {
+				// ★ 浮点数 Equal 使用 Epsilon 范围匹配
+				match = (curVal >= v1 && curVal <= v2);
+			} else {
+				match = (curVal == v1);
+			}
+			break;
+		case NextScanType::NotEqual:
+			if constexpr (std::is_floating_point_v<T>) {
+				// ★ 浮点数 NotEqual 在范围外
+				match = (curVal < v1 || curVal > v2);
+			} else {
+				match = (curVal != v1);
+			}
+			break;
 		case NextScanType::Increased: if (previousSnapshot && previousSnapshot->readValue(res.address, oldVal)) match = (curVal > oldVal); break;
 		case NextScanType::Decreased: if (previousSnapshot && previousSnapshot->readValue(res.address, oldVal)) match = (curVal < oldVal); break;
 		case NextScanType::Changed:   if (previousSnapshot && previousSnapshot->readValue(res.address, oldVal)) match = (curVal != oldVal); break;
@@ -289,8 +356,10 @@ void ScanEngine::performAobSearch(const std::vector<uint8_t>& buf, uint64_t base
 
     const size_t patLen = p.pattern.size();
 
-    // ── 无通配符：用 SIMD 找首字节候选 + memcmp 验证 ──
-    if (std::all_of(p.mask.begin(), p.mask.end(), [](bool b) { return b; })) {
+    // ── 全字节匹配无通配符：用 SIMD 找首字节候选 + memcmp 验证 ──
+    const bool allFullByte = std::all_of(p.mask.begin(), p.mask.end(),
+        [](uint8_t m) { return m == 0xFF; });
+    if (allFullByte) {
         std::vector<size_t> candidates;
         SimdScanner::findFirstChar(buf.data(), buf.size(), p.pattern[0], candidates);
         for (size_t offset : candidates) {
@@ -303,17 +372,24 @@ void ScanEngine::performAobSearch(const std::vector<uint8_t>& buf, uint64_t base
         return;
     }
 
-    // ── 有通配符：逐字节扫描 ──
+    // ── 有 nibble 级通配符：逐字节 nibble 比较 ──
     for (size_t i = 0; i <= buf.size() - patLen; ++i) {
         bool match = true;
         for (size_t k = 0; k < patLen; ++k) {
-            if (p.mask[k]) { // 需要匹配的字节
-                if (buf[i + k] != p.pattern[k]) {
-                    match = false;
-                    break;
-                }
+            const uint8_t m = p.mask[k];
+            if (m == 0x00) continue;                         // "??" 完全通配，跳过
+            const uint8_t cur = buf[i + k];
+            const uint8_t pat = p.pattern[k];
+            if (m == 0xFF) {                                 // "3E" 全字节匹配
+                if (cur != pat) { match = false; break; }
+            } else if (m == 0xF0) {                          // "3?" 仅高半字节
+                if ((cur & 0xF0) != pat) { match = false; break; }
+            } else if (m == 0x0F) {                          // "?E" 仅低半字节
+                if ((cur & 0x0F) != pat) { match = false; break; }
+            } else {
+                // 未知掩码 — 安全回退：全字节比较
+                if (cur != pat) { match = false; break; }
             }
-            // else: 通配符位置，跳过比较
         }
         if (match) matched.push_back(base + i);
     }

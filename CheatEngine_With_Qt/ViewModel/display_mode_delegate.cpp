@@ -10,19 +10,19 @@
 #include <QApplication>
 #include <QStyle>
 
-// ==================== HexDelegate ====================
+// ==================== DisplayModeDelegate ====================
 
-HexDelegate::HexDelegate(QObject* parent)
+DisplayModeDelegate::DisplayModeDelegate(QObject* parent)
     : QStyledItemDelegate(parent)
 {
 }
 
-bool HexDelegate::editorEvent(QEvent* event,
-                               QAbstractItemModel* model,
-                               const QStyleOptionViewItem& option,
-                               const QModelIndex& index)
+bool DisplayModeDelegate::editorEvent(QEvent* event,
+                                      QAbstractItemModel* model,
+                                      const QStyleOptionViewItem& option,
+                                      const QModelIndex& index)
 {
-    // 仅字符串类型的 Hex 列需要单击弹出编辑器
+    // 仅字符串类型的 DisplayMode 列需要单击弹出编辑器
     QModelIndex typeIdx = index.sibling(index.row(), AddressListModel::ColType);
     QString typeText = typeIdx.data(Qt::DisplayRole).toString();
     if (typeText == "String" && event->type() == QEvent::MouseButtonRelease) {
@@ -42,9 +42,9 @@ bool HexDelegate::editorEvent(QEvent* event,
     return QStyledItemDelegate::editorEvent(event, model, option, index);
 }
 
-QWidget* HexDelegate::createEditor(QWidget* parent,
-                                   const QStyleOptionViewItem& /*option*/,
-                                   const QModelIndex& index) const
+QWidget* DisplayModeDelegate::createEditor(QWidget* parent,
+                                           const QStyleOptionViewItem& /*option*/,
+                                           const QModelIndex& index) const
 {
     // 获取当前行的数据类型
     QModelIndex typeIdx = index.sibling(index.row(), AddressListModel::ColType);
@@ -56,6 +56,15 @@ QWidget* HexDelegate::createEditor(QWidget* parent,
         combo->addItem("ASCII", static_cast<int>(StringEncoding::ASCII));
         combo->addItem("UTF-8", static_cast<int>(StringEncoding::UTF8));
         combo->addItem("UTF-16", static_cast<int>(StringEncoding::UTF16));
+
+        // 用户选择下拉项后立即提交并关闭编辑器
+        DisplayModeDelegate* nonConstThis = const_cast<DisplayModeDelegate*>(this);
+        QObject::connect(combo, QOverload<int>::of(&QComboBox::activated),
+                         nonConstThis, [nonConstThis, combo]() {
+            emit nonConstThis->commitData(combo);
+            emit nonConstThis->closeEditor(combo, QAbstractItemDelegate::NoHint);
+        });
+
         return combo;
     }
 
@@ -63,8 +72,8 @@ QWidget* HexDelegate::createEditor(QWidget* parent,
     return nullptr;
 }
 
-void HexDelegate::setEditorData(QWidget* editor,
-                                const QModelIndex& index) const
+void DisplayModeDelegate::setEditorData(QWidget* editor,
+                                        const QModelIndex& index) const
 {
     QComboBox* combo = qobject_cast<QComboBox*>(editor);
     if (!combo) return;
@@ -75,9 +84,9 @@ void HexDelegate::setEditorData(QWidget* editor,
         combo->setCurrentIndex(idx);
 }
 
-void HexDelegate::setModelData(QWidget* editor,
-                               QAbstractItemModel* model,
-                               const QModelIndex& index) const
+void DisplayModeDelegate::setModelData(QWidget* editor,
+                                       QAbstractItemModel* model,
+                                       const QModelIndex& index) const
 {
     QComboBox* combo = qobject_cast<QComboBox*>(editor);
     if (!combo) return;
@@ -90,9 +99,9 @@ void HexDelegate::setModelData(QWidget* editor,
     model->setData(index, parts.join(','), Qt::EditRole);
 }
 
-void HexDelegate::updateEditorGeometry(QWidget* editor,
-                                       const QStyleOptionViewItem& option,
-                                       const QModelIndex& index) const
+void DisplayModeDelegate::updateEditorGeometry(QWidget* editor,
+                                               const QStyleOptionViewItem& option,
+                                               const QModelIndex& index) const
 {
     editor->setGeometry(option.rect);
     // 字符串编码列：定位完成后立即展开下拉框
@@ -104,9 +113,9 @@ void HexDelegate::updateEditorGeometry(QWidget* editor,
     }
 }
 
-void HexDelegate::paint(QPainter* painter,
-                         const QStyleOptionViewItem& option,
-                         const QModelIndex& index) const
+void DisplayModeDelegate::paint(QPainter* painter,
+                                const QStyleOptionViewItem& option,
+                                const QModelIndex& index) const
 {
     // 先绘制默认样式（文字、背景等）
     QStyledItemDelegate::paint(painter, option, index);

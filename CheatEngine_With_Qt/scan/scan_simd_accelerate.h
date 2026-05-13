@@ -142,9 +142,16 @@ public:
 
                     if (effectiveAlignment >= scalarSize) {
                         // 快速路径：利用 SIMD 掩码直接判断，避免标量重读
-                        uint32_t bitsPerElement = static_cast<uint32_t>(scalarSize);
+                        // movemask_epi8 → 32bit(1bit/byte), movemask_ps → 8bit(1bit/float), movemask_pd → 4bit(1bit/double)
+                        constexpr size_t bitsPerElement = std::is_floating_point_v<ScalarType> ? 1 : scalarSize;
                         uint32_t currentElemMask = (1u << bitsPerElement) - 1u;
-                        uint32_t elementBits = (matchBitmask >> byteIndex) & currentElemMask;
+                        uint32_t shift;
+                        if constexpr (std::is_floating_point_v<ScalarType>) {
+                            shift = static_cast<uint32_t>(byteIndex / scalarSize);
+                        } else {
+                            shift = static_cast<uint32_t>(byteIndex);
+                        }
+                        uint32_t elementBits = (matchBitmask >> shift) & currentElemMask;
                         if (elementBits == currentElemMask) {
                             out_matchedAddresses.push_back(candidateAddress);
                         }

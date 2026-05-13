@@ -28,6 +28,10 @@ file(GLOB_RECURSE UI_FILES
     ui/*.ui
 )
 
+file(GLOB_RECURSE QRC_FILES
+    resource/*.qrc
+)
+
 # 排除旧 VS 构建产物（x64/ 目录），避免与 AUTOMOC 生成的 moc 文件冲突
 list(FILTER SOURCES EXCLUDE REGEX "/x64/")
 list(FILTER HEADERS EXCLUDE REGEX "/x64/")
@@ -41,6 +45,7 @@ add_executable(CheatEngineQt
     ${SOURCES}
     ${HEADERS}
     ${UI_FILES}
+    ${QRC_FILES}
 )
 
 # 设置 Windows 子系统（不显示控制台窗口）

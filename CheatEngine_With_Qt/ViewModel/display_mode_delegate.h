@@ -2,14 +2,14 @@
 
 #include <QStyledItemDelegate>
 
-/// @brief Hex 列专用委托
+/// @brief 数据呈现方式列专用委托
 /// - 数值/字节数组类型：CheckBox 形式（Qt 自动绘制）
 /// - 字符串类型：弹出编码选择下拉框 (ASCII/UTF-8/UTF-16)
-class HexDelegate : public QStyledItemDelegate
+class DisplayModeDelegate : public QStyledItemDelegate
 {
     Q_OBJECT
 public:
-    explicit HexDelegate(QObject* parent = nullptr);
+    explicit DisplayModeDelegate(QObject* parent = nullptr);
 
     QWidget* createEditor(QWidget* parent,
                           const QStyleOptionViewItem& option,

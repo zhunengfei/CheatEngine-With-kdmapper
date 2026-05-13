@@ -35,6 +35,9 @@
     <Filter Include="ui">
       <UniqueIdentifier>{ad09a0ea-786f-4116-b74b-28447b491f5a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="resource">
+      <UniqueIdentifier>{61487d4e-6a09-48da-b7ae-6daae8ec4f0a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="scan\scan_result_view_model.h">
@@ -250,5 +253,24 @@
     <QtUic Include="ui\Add_Or_Change_Address.ui">
       <Filter>ui</Filter>
     </QtUic>
+    <QtUic Include="ui\About.ui">
+      <Filter>ui</Filter>
+    </QtUic>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resource\AliPay.JPG">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\Deemo_Yuan.JPG">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\WeChatPay.JPG">
+      <Filter>resource</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <QtRcc Include="resource\resources.qrc">
+      <Filter>resource</Filter>
+    </QtRcc>
   </ItemGroup>
 </Project>

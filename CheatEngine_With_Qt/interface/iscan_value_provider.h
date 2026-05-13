@@ -19,4 +19,8 @@ public:
 	virtual std::string getAddressDisplay(uint64_t address) const = 0;
 
 	virtual bool isModuleBase(uint64_t address) const = 0;
+
+	// ★ Hex 显示模式控制（仅整数类型生效）
+	virtual void setHexDisplay(bool on) = 0;
+	virtual bool isHexDisplay() const = 0;
 };

@@ -12,9 +12,20 @@ public:
 	EncodingFormatter() = default;
 	~EncodingFormatter() = default;
 
-	//常规整数、浮点转化
-	inline static std::string formatValue(uint64_t raw, ScanDataType type) {
+	// 格式化数值：decimal 或 hex（整数类型 hex 输出 "0x%llx"，浮点忽略 hexDisplay 始终输出浮点）
+	inline static std::string formatValue(uint64_t raw, ScanDataType type, bool hexDisplay = false) {
 		char buf[64] = {};
+		if (hexDisplay && !isFloatingPoint(type)) {
+			switch (type) {
+			case ScanDataType::Int8:  snprintf(buf, sizeof(buf), "0x%llx", static_cast<uint8_t>(raw)); break;
+			case ScanDataType::Int16: snprintf(buf, sizeof(buf), "0x%llx", static_cast<uint16_t>(raw)); break;
+			case ScanDataType::Int32: snprintf(buf, sizeof(buf), "0x%llx", static_cast<uint32_t>(raw)); break;
+			case ScanDataType::Int64: snprintf(buf, sizeof(buf), "0x%llx", raw); break;
+			case ScanDataType::Bit:   snprintf(buf, sizeof(buf), "0x%llx", raw & 1); break;
+			default: return std::to_string(raw);
+			}
+			return buf;
+		}
 		switch (type) {
 		case ScanDataType::Int8:  snprintf(buf, sizeof(buf), "%d", static_cast<int8_t>(raw)); break;
 		case ScanDataType::Int16: snprintf(buf, sizeof(buf), "%d", static_cast<int16_t>(raw)); break;

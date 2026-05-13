@@ -111,7 +111,7 @@ struct AddressItem
 
     // ---- 显示模式选项 ----
     bool        hexDisplay = false;     // 16进制显示（整数/浮点/字节数组）
-    bool        signedDisplay = false;  // 有符号显示（仅整数类型）
+    bool        signedDisplay = true;   // 默认有符号显示（整数类型）
     StringEncoding encoding = StringEncoding::UTF8; // 字符串编码（仅字符串类型）
 
     // ---- 字符串/字节数组数据缓冲区 ----

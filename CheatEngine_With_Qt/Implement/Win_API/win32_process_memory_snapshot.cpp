@@ -32,7 +32,23 @@ bool Win32ProcessMemorySnapshot::readData(uint64_t address, uint8_t* buffer, siz
     if (it == m_index.begin()) return false;
     --it;
 
-    size_t readOffset = it->second + (address - it->first);
+    // ★ 地址范围验证：计算本区域在快照文件中的数据大小
+    uint64_t regionBase = it->first;
+    size_t regionDataSize;
+    auto next = std::next(it);
+    if (next != m_index.end()) {
+        // 相邻两个索引条目的文件偏移之差 = 本区域的实际数据大小
+        regionDataSize = next->second - it->second;
+    } else {
+        // 最后一个区域：从当前文件偏移到文件末尾
+        regionDataSize = m_fileSize - it->second;
+    }
+
+    // ★ 验证 address 是否真的落在该区域内（相对偏移不能超过本区域大小）
+    size_t offsetInRegion = static_cast<size_t>(address - regionBase);
+    if (offsetInRegion + size > regionDataSize) return false;
+
+    size_t readOffset = it->second + offsetInRegion;
 
     // 优先使用内存映射读取
     if (m_pBuffer && (readOffset + size <= m_fileSize)) {

@@ -171,8 +171,17 @@
     <QtTranslation Include="language_translations\Translation_en.ts" />
   </ItemGroup>
   <ItemGroup>
+    <QtUic Include="ui\About.ui" />
     <QtUic Include="ui\Add_Or_Change_Address.ui" />
     <QtUic Include="ui\CheatEngine_With_Qt.ui" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resource\AliPay.JPG" />
+    <Image Include="resource\Deemo_Yuan.JPG" />
+    <Image Include="resource\WeChatPay.JPG" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtRcc Include="resource\resources.qrc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

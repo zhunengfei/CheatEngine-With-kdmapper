@@ -13,25 +13,52 @@ ScanResultViewModel::ScanResultViewModel(ScanResultRepository* repo, IScanValueP
 
 }
 
+void ScanResultViewModel::rebuildFilteredIndices() {
+	if (!m_repo) return;
+	size_t total = m_repo->getResultCount();
+
+	m_filteredIndices.clear();
+
+	if (m_filterModuleBase != 0 && m_filterModuleSize > 0) {
+		uint64_t filterEnd = m_filterModuleBase + m_filterModuleSize;
+		for (size_t i = 0; i < total; ++i) {
+			uint64_t addr = m_repo->getAddressAtIndex(i);
+			if (addr >= m_filterModuleBase && addr < filterEnd) {
+				m_filteredIndices.push_back(i);
+			}
+		}
+	} else {
+		// 无过滤：建立全量索引
+		m_filteredIndices.reserve(total);
+		for (size_t i = 0; i < total; ++i) {
+			m_filteredIndices.push_back(i);
+		}
+	}
+}
+
 void ScanResultViewModel::rebuildAllCaches() {
 	if (!m_repo) return;
 
 	// 1. 加锁保护缓存容器，防止定时刷新线程冲突
 	std::lock_guard<std::mutex> lock(m_mutex);
 
-	// 2. 确定显示行数，防止大数据量撑爆内存
-	size_t count = std::min(m_repo->getResultCount(), static_cast<size_t>(MAX_DISPLAY));
+	// 2. 重建过滤索引
+	rebuildFilteredIndices();
 
-	// 3. 预分配所有容器空间
+	// 3. 确定显示行数，防止大数据量撑爆内存
+	size_t count = std::min(m_filteredIndices.size(), static_cast<size_t>(MAX_DISPLAY));
+
+	// 4. 预分配所有容器空间
 	m_cacheAddress.resize(count);
 	m_cacheCurrent.resize(count);
 	m_cachePrevious.resize(count);
 	m_cacheFirst.resize(count);
 	m_cacheIsBase.resize(count);
 
-	// 4. 一次性填充静态值（这些值在本次扫描会话中不会改变）
+	// 5. 一次性填充静态值（这些值在本次扫描会话中不会改变）
 	for (size_t i = 0; i < count; ++i) {
-		uint64_t addr = m_repo->getAddressAtIndex(i);
+		size_t realIdx = m_filteredIndices[i];
+		uint64_t addr = m_repo->getAddressAtIndex(realIdx);
 
 		// 缓存地址列显示文本（涉及模块解析，IO 较重）
 		m_cacheAddress[i] = m_valueProvider->getAddressDisplay(addr);
@@ -46,6 +73,19 @@ void ScanResultViewModel::rebuildAllCaches() {
 		// 填充初始当前值
 		m_cacheCurrent[i] = m_valueProvider->getCurrentValue(addr, m_displayType);
 	}
+
+	// 6. 通知过滤计数变化（用于更新 UI 标签）
+	int totalCount = static_cast<int>(m_filteredIndices.size());
+	emit filteredCountChanged(static_cast<int>(count), totalCount);
+}
+
+void ScanResultViewModel::setHexDisplay(bool on) {
+	if (!m_valueProvider) return;
+	if (m_valueProvider->isHexDisplay() == on) return;
+	m_valueProvider->setHexDisplay(on);
+	rebuildAllCaches();
+	beginResetModel();
+	endResetModel();
 }
 
 void ScanResultViewModel::setDisplayType(ScanDataType type)
@@ -65,11 +105,26 @@ void ScanResultViewModel::onRepositoryReplaced() {
 	endResetModel();
 }
 
+// ---- 模块过滤 ----
+
+void ScanResultViewModel::setModuleFilter(uint64_t base, uint64_t size) {
+	m_filterModuleBase = base;
+	m_filterModuleSize = size;
+	rebuildAllCaches();
+	beginResetModel();
+	endResetModel();
+}
+
+void ScanResultViewModel::clearModuleFilter() {
+	setModuleFilter(0, 0);
+}
+
 bool ScanResultViewModel::updateRowCache(int row) {
 	// 边界检查
 	if (row < 0 || row >= static_cast<int>(m_cacheCurrent.size())) return false;
 
-	uint64_t addr = m_repo->getAddressAtIndex(row);
+	size_t realIdx = m_filteredIndices[row];
+	uint64_t addr = m_repo->getAddressAtIndex(realIdx);
 
 	// 从目标进程实时读取内存（涉及系统调用）
 	std::string newVal = m_valueProvider->getCurrentValue(addr, m_displayType);
@@ -97,7 +152,7 @@ void ScanResultViewModel::refreshCurrentValues() {
 		}
 	}
 
-	// 如果有数值变动，通知视图刷新“Value”列（列索引 1）
+	// 如果有数值变动，通知视图刷新"Value"列（列索引 1）
 	if (firstChanged != -1) {
 		emit dataChanged(
 			index(firstChanged, 1),
@@ -112,7 +167,7 @@ int ScanResultViewModel::rowCount(const QModelIndex& parent) const
 {
 	if (parent.isValid()) return 0;
 	if (!m_repo) return 0;
-	return std::min(static_cast<int>(m_repo->getResultCount()), MAX_DISPLAY);
+	return std::min(static_cast<int>(m_filteredIndices.size()), MAX_DISPLAY);
 }
 
 int ScanResultViewModel::columnCount(const QModelIndex& parent) const
@@ -139,7 +194,7 @@ QVariant ScanResultViewModel::data(const QModelIndex& index, int role) const {
 	else if (role == Qt::ForegroundRole) {
 		if (col == 0) {
 			// 这里可以通过之前缓存的标记来判断，避免调用 resolveAddress
-			uint64_t addr = m_repo->getAddressAtIndex(row);
+			uint64_t addr = m_repo->getAddressAtIndex(m_filteredIndices[row]);
 			if (m_valueProvider->isModuleBase(addr)) return QBrush(Qt::green);
 		}
 		else if (col == 1) {
@@ -168,8 +223,6 @@ QVariant ScanResultViewModel::headerData(int section, Qt::Orientation orientatio
 
 uint64_t ScanResultViewModel::getAddress(int row) const
 {
-	return m_repo ? m_repo->getAddressAtIndex(row) : 0;
+	if (!m_repo || row < 0 || row >= static_cast<int>(m_filteredIndices.size())) return 0;
+	return m_repo->getAddressAtIndex(m_filteredIndices[row]);
 }
-
-
-

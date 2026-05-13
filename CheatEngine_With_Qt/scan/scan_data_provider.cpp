@@ -40,7 +40,7 @@ std::string ScanDataProvider::getAddressDisplay(uint64_t address) const {
 	return display;
 }
 
-std::string ScanDataProvider::readValueFromSnapshot(uint64_t address, ScanDataType type,
+	std::string ScanDataProvider::readValueFromSnapshot(uint64_t address, ScanDataType type,
 	const std::shared_ptr<IProcessMemorySnapshot>& snapshot) const {
 	if (!snapshot) return "---";
 	size_t size = scanDataTypeSize(type);
@@ -62,7 +62,7 @@ std::string ScanDataProvider::readValueFromSnapshot(uint64_t address, ScanDataTy
 	uint64_t raw = 0;
 	if (!snapshot->readData(address, reinterpret_cast<uint8_t*>(&raw), size))
 		return "---";
-	return EncodingFormatter::formatValue(raw, type);
+	return EncodingFormatter::formatValue(raw, type, m_hexDisplay);
 }
 
 std::string ScanDataProvider::readCurrentFromMemory(uint64_t address, ScanDataType type) const {
@@ -86,5 +86,5 @@ std::string ScanDataProvider::readCurrentFromMemory(uint64_t address, ScanDataTy
 	uint64_t raw = 0;
 	if (!mem->read(address, &raw, size))
 		return "---";
-	return EncodingFormatter::formatValue(raw, type);
+	return EncodingFormatter::formatValue(raw, type, m_hexDisplay);
 }

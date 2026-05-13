@@ -1,43 +1,4 @@
 
-//┌─────────────────────────────────────────────────────┐
-//│上层(MainWindow / 其他)          │
-//││
-//│只依赖 ScanService 和 ScanResultViewModel     │
-//└───────────────────────┬─────────────────────────────┘
-//│
-//　　　　　  　▼
-//┌──────────────────┐
-//　 　    │   ScanService    　　　　　　　　　│(门面 + 线程调度)
-//  　   　│      │
-//                     │ - startScan()   　　　│
-//  　   　│ - cancel()  　│
-//  　   　│ - getResultViewModel()  　　　　　　　　　│─── > ScanResultViewModel
-//│ - isScanning()   　　　　　　　　　│
-//  　   　└────────┬─────────┘
-//│ 内部持有
-//┌────────────┼────────────┐
-//│││
-//▼▼▼
-//┌─────────────┐ ┌──────────────────┐ ┌─────────────────────┐
-//│ ScanEngine  　　　　　 　│ │       ScanResultRepository│ │ ScanResultViewModel 　　　　    │
-//│      　　　　 　│ │         　       │ │              　　    　│
-//│ 纯计算      　　　　 　　│ │ 　　      线程安全存储    │ │ QAbstractTableModel 　　      　│
-//│ 返回结果    　　　　　 　│ │　快照、增量更新   　    　│ │ 格式化显示    │
-//└─────────────┘ └──────────────────┘ └─────────────────────┘
-//            │
-//            ▼(仅使用)
-//┌─────────────┐
-//│ ProcessManager           │
-//│ memory()                 │(进程抽象层，读取进程内存，静态工具)
-//└─────────────┘
-//            │
-//            ▼(抽象接口使用)
-//┌─────────────┐
-//│ IMemoryAccessor          │
-//││
-//│ read()                   │(提供内存访问结构接口，静态工具)
-//└─────────────┘
-
 #pragma once
 #include "scan\scan_result_view_model.h"
 #include "scan\scan_data_stream_define.h"
@@ -68,6 +29,7 @@ public:
 	int  totalResults() const;
 
 	ScanResultViewModel* getResultViewModel() const { return m_viewModel.get(); }
+	ScanDataProvider* getDataProvider() const { return m_dataProvider.get(); }
 
 	// 自动刷新（现在仅负责触发 UI 重绘）
 	void startAutoRefresh(int intervalMs = 200);

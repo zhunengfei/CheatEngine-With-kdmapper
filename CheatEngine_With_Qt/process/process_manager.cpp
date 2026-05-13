@@ -129,20 +129,19 @@ bool ProcessManager::resolveAddress(uint64_t addr, std::string& outDisplay, bool
 				outDisplay = mod.name;
 			else
 			{
-				// 格式：module.dll+0xHEX（不带0x前缀可自行调整）
-				outDisplay = mod.name + "+0x";
-				// 手动转为十六进制
-				char buf[17];
-				snprintf(buf, sizeof(buf), "%llX", offset);
-				outDisplay += buf;
+			// 格式：module.dll+0xhex
+			outDisplay = mod.name + "+0x";
+			char buf[17];
+			snprintf(buf, sizeof(buf), "%llx", offset);
+			outDisplay += buf;
 			}
 			isBase = (offset == 0);
 			return true;
 		}
 	}
-	// 未找到模块，返回纯地址十六进制
+	// 未找到模块，返回纯地址十六进制（小写）
 	char buf[19];
-	snprintf(buf, sizeof(buf), "0x%llX", addr);
+	snprintf(buf, sizeof(buf), "0x%llx", addr);
 	outDisplay = buf;
 	isBase = false;
 	return false;

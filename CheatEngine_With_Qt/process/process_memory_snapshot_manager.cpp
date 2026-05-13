@@ -28,18 +28,34 @@ std::shared_ptr<IProcessMemorySnapshot> ProcessMemorySnapshotManager::createSnap
 	auto accessor = ProcessManager::instance().memory();
 	if (!accessor) return nullptr;
 
-	// 3. 遍历区域并写入文件
+	// 3. 遍历区域并写入文件（分块读取，避免大区域单次 ReadProcessMemory 失败）
+	static constexpr size_t READ_CHUNK_SIZE = 64 * 1024; // 64KB 分块
 	for (const auto& reg : regions) {
-		std::vector<uint8_t> buffer(reg.size);
+		uint64_t chunkBase = reg.base;
+		size_t remaining = reg.size;
+		bool regionHasAnyWrites = false;
 
-		// 使用 IMemoryAccessor 读取内存
-		// 假设您的 IMemoryAccessor 接口是 read(uint64_t addr, void* buf, size_t size)
-		if (accessor->read(reg.base, buffer.data(), reg.size)) {
-			outFile.write(reinterpret_cast<const char*>(buffer.data()), reg.size);
+		while (remaining > 0) {
+			size_t toRead = (std::min)(READ_CHUNK_SIZE, remaining);
+			std::vector<uint8_t> buffer(toRead);
 
-			// 记录索引：内存虚拟地址 -> 镜像文件中的偏移位置
-			index[reg.base] = currentFileOffset;
-			currentFileOffset += reg.size;
+			if (!regionHasAnyWrites) {
+				// 该区域第一次写入前记录索引（无论首块是否成功，后续零占位也保持线性映射）
+				index[reg.base] = currentFileOffset;
+				regionHasAnyWrites = true;
+			}
+
+			if (accessor->read(chunkBase, buffer.data(), toRead)) {
+				outFile.write(reinterpret_cast<const char*>(buffer.data()), toRead);
+			} else {
+				// 读取失败的分块：写入全零占位，保持地址-文件偏移的线性映射
+				std::vector<uint8_t> zeros(toRead, 0);
+				outFile.write(reinterpret_cast<const char*>(zeros.data()), toRead);
+			}
+			currentFileOffset += toRead;
+
+			chunkBase += toRead;
+			remaining -= toRead;
 		}
 	}
 

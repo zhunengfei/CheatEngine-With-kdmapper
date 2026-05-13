@@ -31,6 +31,14 @@ QWidget* TypeDelegate::createEditor(QWidget* parent,
     editor->addItem("String",     static_cast<int>(ValueType::String));
     editor->addItem("Byte Array", static_cast<int>(ValueType::ByteArray));
 
+    // 用户选择下拉项后立即提交并关闭编辑器，无需再点击其他位置
+    TypeDelegate* nonConstThis = const_cast<TypeDelegate*>(this);
+    QObject::connect(editor, QOverload<int>::of(&QComboBox::activated),
+                     nonConstThis, [nonConstThis, editor]() {
+        emit nonConstThis->commitData(editor);
+        emit nonConstThis->closeEditor(editor, QAbstractItemDelegate::NoHint);
+    });
+
     return editor;
 }
 
@@ -79,7 +87,7 @@ void TypeDelegate::setModelData(QWidget* editor,
 
     // 获取用户选中的 ValueType
     int selectedType = combo->currentData().toInt();
-    // 通过 EditRole 写入模型，模型负责更新数据并触发重新读取内存
+    // 通过 EditRole 写入模型，模型负责更新数据但不触发刷新（延迟刷新由 activated 连接处理）
     model->setData(index, selectedType, Qt::EditRole);
 }
 

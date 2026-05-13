@@ -11,7 +11,7 @@
                 "isDefault": true
             },
             "presentation": {
-                "reveal": "always",
+                "reveal": "never",
                 "panel": "new"
             },
             "problemMatcher": []

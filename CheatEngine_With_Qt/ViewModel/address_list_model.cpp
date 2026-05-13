@@ -26,6 +26,8 @@ static void refreshItemValue(AddressItem& item, std::shared_ptr<IMemoryAccessor>
         mem->read(item.address, item.buffer.data(), readLen);
     } else {
         size_t size = valueTypeSize(item.type);
+        // 先清零 rawValue，确保读取少于8字节时高位不会残留旧数据
+        item.rawValue = 0;
         mem->read(item.address, &item.rawValue, size);
     }
     item.changed = false;
@@ -107,8 +109,8 @@ QVariant AddressListModel::data(const QModelIndex& index, int role) const
             default:                   return "Int";
             }
         }
-        case ColHex: {
-            // Hex 列：显示当前 Hex 状态
+        case ColDisplayMode: {
+            // 数据呈现方式列：显示当前显示模式状态
             if (isNumericType(item.type)) {
                 return item.hexDisplay ? QString("Hex") : QString("Dec");
             }
@@ -146,12 +148,28 @@ QVariant AddressListModel::data(const QModelIndex& index, int role) const
         }
     }
 
+    // ---- 编辑时的预填内容 ----
+    if (role == Qt::EditRole) {
+        switch (index.column()) {
+        case ColDescription:
+            return item.description;
+        case ColValue:
+            return item.formattedValue();
+        case ColLength:
+            if (isStringValueType(item.type) || isByteArrayValueType(item.type))
+                return QString::number(item.stringLength > 0 ? item.stringLength : static_cast<int>(item.buffer.size()));
+            return {};
+        default:
+            return {};
+        }
+    }
+
     // ---- 工具提示 ----
     if (role == Qt::ToolTipRole) {
         if (index.column() == ColAddress) {
             return QString("0x%1").arg(item.address, 16, 16, QChar('0'));
         }
-        if (index.column() == ColHex) {
+        if (index.column() == ColDisplayMode) {
             if (isNumericType(item.type)) {
                 return item.hexDisplay ? tr("单击切换为十进制显示") : tr("单击切换为16进制显示");
             }
@@ -185,8 +203,10 @@ QVariant AddressListModel::data(const QModelIndex& index, int role) const
             return QVariant(Qt::AlignRight | Qt::AlignVCenter);
         if (index.column() == ColLength)
             return QVariant(Qt::AlignCenter);
-        if (index.column() == ColHex || index.column() == ColSigned)
+        if (index.column() == ColSigned)
             return QVariant(Qt::AlignCenter);
+        if (index.column() == ColDisplayMode)
+            return QVariant(Qt::AlignLeft | Qt::AlignVCenter);
         return QVariant(Qt::AlignLeft | Qt::AlignVCenter);
     }
 
@@ -210,8 +230,8 @@ QVariant AddressListModel::data(const QModelIndex& index, int role) const
         if (index.column() == ColFrozen)
             return item.frozen ? Qt::Checked : Qt::Unchecked;
 
-        // Hex 列：数值类型和字节数组类型显示 CheckBox
-        if (index.column() == ColHex) {
+        // DisplayMode 列：数值类型和字节数组类型显示 CheckBox
+        if (index.column() == ColDisplayMode) {
             if (isNumericType(item.type) || isByteArrayValueType(item.type))
                 return item.hexDisplay ? Qt::Checked : Qt::Unchecked;
             // 字符串类型不显示 CheckBox，用 DisplayRole 显示编码名
@@ -239,7 +259,7 @@ QVariant AddressListModel::headerData(int section, Qt::Orientation orientation, 
     case ColAddress:     return "Address";
     case ColValue:       return "Value";
     case ColType:        return "Type";
-    case ColHex:         return "Hex";
+    case ColDisplayMode: return "Display";
     case ColSigned:      return "Signed";
     case ColLength:      return "Length";
     }
@@ -264,7 +284,7 @@ bool AddressListModel::setData(const QModelIndex& index, const QVariant& value, 
             return true;
         }
 
-        if (index.column() == ColHex) {
+        if (index.column() == ColDisplayMode) {
             if (isNumericType(item.type) || isByteArrayValueType(item.type)) {
                 item.hexDisplay = checked;
                 // 切换 Hex/Dec 后立即重读内存刷新 Value
@@ -293,7 +313,11 @@ bool AddressListModel::setData(const QModelIndex& index, const QVariant& value, 
     // ---- 文本编辑 ----
     if (role == Qt::EditRole) {
         if (index.column() == ColDescription) {
-            item.description = value.toString();
+            QString newDesc = value.toString().trimmed();
+            // 如果没有输入新内容，保持原有描述不变
+            if (!newDesc.isEmpty())
+                item.description = newDesc;
+            // 即使没有变化也要 emitRowChanged 以关闭编辑器
             emitRowChanged(this, row);
             return true;
         }
@@ -302,15 +326,24 @@ bool AddressListModel::setData(const QModelIndex& index, const QVariant& value, 
             ValueType newType = static_cast<ValueType>(value.toInt());
             if (newType != item.type) {
                 item.type = newType;
-                item.rawValue = 0;
-                item.buffer.clear();
-                item.stringLength = 0;
 
-                // 类型变化后立即从内存重读
+                // 类型变化后立即从内存重读，不清除已有值
+                // （若内存不可用则保留旧值，避免数值突然变 0）
                 auto mem = ProcessManager::instance().memory();
-                if (mem) refreshItemValue(item, mem);
+                if (mem) {
+                    refreshItemValue(item, mem);
+                } else {
+                    // 内存不可用时，清空字符串/字节数组缓冲区
+                    if (isStringValueType(item.type) || isByteArrayValueType(item.type)) {
+                        item.buffer.clear();
+                        item.stringLength = 0;
+                    }
+                }
 
-                emitRowChanged(this, row);
+                // 延迟刷新：确保编辑器完全关闭后再通知视图更新
+                QMetaObject::invokeMethod(this, [this, row]() {
+                    emitRowChanged(this, row);
+                }, Qt::QueuedConnection);
             }
             return true;
         }
@@ -382,13 +415,23 @@ bool AddressListModel::setData(const QModelIndex& index, const QVariant& value, 
                 break;
             }
             case ValueType::Int32: {
-                uint v = text.toUInt(&ok, base);
-                if (ok) { newRaw = v; mem->write(item.address, &newRaw, 4); }
+                if (base == 16) {
+                    uint v = text.toUInt(&ok, 16);
+                    if (ok) { newRaw = v; mem->write(item.address, &newRaw, 4); }
+                } else {
+                    int v = text.toInt(&ok, 10);
+                    if (ok) { std::memcpy(&newRaw, &v, sizeof(v)); mem->write(item.address, &newRaw, 4); }
+                }
                 break;
             }
             case ValueType::Int64: {
-                uint64_t v = text.toULongLong(&ok, base);
-                if (ok) { newRaw = v; mem->write(item.address, &newRaw, 8); }
+                if (base == 16) {
+                    uint64_t v = text.toULongLong(&ok, 16);
+                    if (ok) { newRaw = v; mem->write(item.address, &newRaw, 8); }
+                } else {
+                    int64_t v = text.toLongLong(&ok, 10);
+                    if (ok) { std::memcpy(&newRaw, &v, sizeof(v)); mem->write(item.address, &newRaw, 8); }
+                }
                 break;
             }
             case ValueType::Float: {
@@ -416,7 +459,7 @@ bool AddressListModel::setData(const QModelIndex& index, const QVariant& value, 
             return true;
         }
 
-        if (index.column() == ColHex) {
+        if (index.column() == ColDisplayMode) {
             // 字符串类型：解析 ComboBox 传来的编码数据
             if (isStringValueType(item.type)) {
                 QString data = value.toString();
@@ -427,7 +470,13 @@ bool AddressListModel::setData(const QModelIndex& index, const QVariant& value, 
                         item.encoding = static_cast<StringEncoding>(kv[1].toInt());
                     }
                 }
-                emitRowChanged(this, row);
+                // 编码变化后从真实内存重读字符串数据，确保显示最新
+                auto mem = ProcessManager::instance().memory();
+                if (mem) refreshItemValue(item, mem);
+                // 延迟刷新：确保编辑器完全关闭后再通知视图更新
+                QMetaObject::invokeMethod(this, [this, row]() {
+                    emitRowChanged(this, row);
+                }, Qt::QueuedConnection);
                 return true;
             }
             return false;
@@ -471,7 +520,7 @@ Qt::ItemFlags AddressListModel::flags(const QModelIndex& index) const
     case ColValue:
         flags |= Qt::ItemIsEditable;
         break;
-    case ColHex:
+    case ColDisplayMode:
         // 数值类型和字节数组类型：CheckBox 形式
         if (index.row() < m_items.size()) {
             const auto& item = m_items[index.row()];

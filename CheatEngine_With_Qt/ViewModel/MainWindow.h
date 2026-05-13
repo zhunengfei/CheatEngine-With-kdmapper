@@ -2,6 +2,13 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QTableView>
+#include <QComboBox>
+#include <QMenuBar>
+#include <QAction>
+#include <QGraphicsScene>
+#include <QPixmap>
+#include <QDesktopServices>
+#include <QUrl>
 #include <atomic>
 #include <memory>
 #include "scan\scan_data_stream_define.h"
@@ -35,7 +42,7 @@ struct UiContext {
     bool showWritableExecutable = true;
     bool showPercent = false;
     bool showRepeat = false;
-    bool showOnlySimpleValue = false;
+    bool showContainApproximateValue = false;
 
     // 控件启用状态
     bool comboTypeEnabled = true;
@@ -72,6 +79,7 @@ private:
 
     void setupUi();
     void initServices();
+    void initMenuBar();
 
     void initLanguageCombobox(int currentLangIndex = 0);
     
@@ -85,7 +93,9 @@ private:
     void initDataTypeComboBox();
 
     ScanRequest buildScanRequest(ScanMode mode) const;
-    
+
+    // ★ 根据数据类型自动填充快速扫描的对齐值
+    void autoFillFastScanAlignment();
 
 	// 从 UI 获取扫描参数
 
@@ -120,6 +130,7 @@ private:
     AddressListModel* addressModel = nullptr;
 
     QTableView* scanResultView = nullptr;
+    QComboBox* m_scanModuleFilter = nullptr;
     QTableView* addressView = nullptr;
 
     QTimer* freezeTimer = nullptr;
@@ -127,6 +138,7 @@ private:
     QTimer* healthTimer = nullptr;
 
     std::atomic<bool> m_isScanning = false;
+    bool m_updatingAobInput = false;   // 防止字节数组自动空格递归
     bool m_attachedToProcess = false;
     bool m_isFirstScan = true;
 
@@ -150,4 +162,7 @@ private slots:
 
     /// 批量将选中的扫描行添加到地址列表（内部方法）
     void addSelectedScanRowsToAddressList();
+
+    /// 打开软件捐赠/关于对话框
+    void onAboutDonate();
 };

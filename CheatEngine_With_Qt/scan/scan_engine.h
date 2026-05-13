@@ -80,6 +80,7 @@ private:
 
 	template <typename T>
 	void taskFirstScan(const ScanRequest& req, MemoryRegion region,
+		std::shared_ptr<IProcessMemorySnapshot> currentSnapshot,
 		std::shared_ptr<AdaptiveCachePool<ScanResult>> outCache);
 
 	template <typename T>

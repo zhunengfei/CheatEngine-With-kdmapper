@@ -2,7 +2,8 @@
 
 #include "ViewModel\MainWindow.h"
 #include "ui_CheatEngine_With_Qt.h"
-// #include "ViewModel\Add_Or_Change_Address_Dialog.h"
+#include "ui_Add_Or_Change_Address.h"
+#include "ui_About.h"
 #include "ViewModel\address_list_model.h"
 #include "ViewModel\type_delegate.h"
 #include "ViewModel\display_mode_delegate.h"
@@ -16,6 +17,8 @@
 #include <QTimer>
 #include <QTableView>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QApplication>
@@ -30,6 +33,7 @@ MainWindow::MainWindow(QWidget* parent)
 {
     setupUi();
     initServices();
+    initMenuBar();
     initLanguageCombobox();
     initViews();
     initTimers();
@@ -51,6 +55,16 @@ void MainWindow::initServices()
     addressModel = new AddressListModel(this);
 }
 
+void MainWindow::initMenuBar()
+{
+    // 创建"帮助"菜单
+    QMenu* helpMenu = menuBar()->addMenu(tr("帮助"));
+
+    // "软件捐赠/关于"动作
+    QAction* aboutAction = helpMenu->addAction(tr("软件捐赠 / 关于"));
+    connect(aboutAction, &QAction::triggered, this, &MainWindow::onAboutDonate);
+}
+
 void MainWindow::initLanguageCombobox(int currentLangIndex)
 {
     ui->comboBox_language->blockSignals(true);
@@ -69,7 +83,7 @@ void MainWindow::initViews()
     setupScanResultView();
     replaceAddressTable();
     ui->progressBar->setVisible(false);
-    ui->checkBox_Only_Simple_Value->setToolTip(tr("仅扫描看起来是普通数值的地址，排除指针、代码、加密数据等复杂值"));
+    ui->checkBox_contain_approximate_value->setToolTip(tr("选中时，浮点数搜索包含近似值（如搜 521 可匹配 520.xxx ~ 521.xxx 范围内的值）；\n不选中时，取浮点数的精确位级匹配"));
     ui->checkBox_percent->setToolTip(tr("选中时，后面的输入框预期输入数字为 1 到 100 之间的百分比值\n\n对比上一次变化的幅度，比如100变成 150 就是减少/增大了百分之50"));
 }
 
@@ -91,6 +105,15 @@ void MainWindow::setupScanResultView()
     QVBoxLayout* tabLayout = new QVBoxLayout(firstTab);
     tabLayout->setContentsMargins(0, 0, 0, 0);
 
+    // ★ 模块过滤下拉框
+    QHBoxLayout* filterLayout = new QHBoxLayout();
+    QLabel* filterLabel = new QLabel(tr("模块过滤:"), firstTab);
+    m_scanModuleFilter = new QComboBox(firstTab);
+    m_scanModuleFilter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    filterLayout->addWidget(filterLabel);
+    filterLayout->addWidget(m_scanModuleFilter, 1);
+    tabLayout->addLayout(filterLayout);
+
     scanResultView = new QTableView(firstTab);
     scanResultView->setModel(m_resultModel);
     scanResultView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
@@ -102,7 +125,10 @@ void MainWindow::setupScanResultView()
     scanResultView->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     scanResultView->setSelectionBehavior(QAbstractItemView::SelectRows);
     scanResultView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    tabLayout->addWidget(scanResultView);
+    tabLayout->addWidget(scanResultView, 1);
+
+    // 初始填充："全部模块"
+    m_scanModuleFilter->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
 }
 
 void MainWindow::replaceAddressTable()
@@ -119,22 +145,22 @@ void MainWindow::replaceAddressTable()
         addressView->horizontalHeader()->setStretchLastSection(false);
         // 所有列默认按比例拉伸填满整个视图宽度，同时允许用户拖动改变单列宽度
         addressView->horizontalHeader()->setMinimumSectionSize(40);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColFrozen, QHeaderView::Stretch);
-        addressView->setColumnWidth(AddressListModel::ColFrozen, 50);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColFrozen, QHeaderView::Fixed);
+        addressView->setColumnWidth(AddressListModel::ColFrozen, 60);
         addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColDescription, QHeaderView::Stretch);
         addressView->setColumnWidth(AddressListModel::ColDescription, 120);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColAddress, QHeaderView::Interactive);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColAddress, QHeaderView::Stretch);
         addressView->setColumnWidth(AddressListModel::ColAddress, 150);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColValue, QHeaderView::Interactive);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColValue, QHeaderView::Stretch);
         addressView->setColumnWidth(AddressListModel::ColValue, 150);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColType, QHeaderView::Stretch);
-        addressView->setColumnWidth(AddressListModel::ColType, 80);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColHex, QHeaderView::Stretch);
-        addressView->setColumnWidth(AddressListModel::ColHex, 60);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColSigned, QHeaderView::Stretch);
-        addressView->setColumnWidth(AddressListModel::ColSigned, 80);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColLength, QHeaderView::Stretch);
-        addressView->setColumnWidth(AddressListModel::ColLength, 70);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColType, QHeaderView::Fixed);
+        addressView->setColumnWidth(AddressListModel::ColType, 90);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColDisplayMode, QHeaderView::Fixed);
+        addressView->setColumnWidth(AddressListModel::ColDisplayMode, 70);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColSigned, QHeaderView::Fixed);
+        addressView->setColumnWidth(AddressListModel::ColSigned, 85);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColLength, QHeaderView::Fixed);
+        addressView->setColumnWidth(AddressListModel::ColLength, 75);
         // 启用交互式拉伸：用户拖动某列后，该列自动转为 Interactive，其余列按新宽度重新 Stretch 填充
         
 
@@ -142,9 +168,9 @@ void MainWindow::replaceAddressTable()
         TypeDelegate* typeDelegate = new TypeDelegate(addressView);
         addressView->setItemDelegateForColumn(AddressListModel::ColType, typeDelegate);
 
-        // 为 Hex 列设置自定义委托
-        HexDelegate* hexDelegate = new HexDelegate(addressView);
-        addressView->setItemDelegateForColumn(AddressListModel::ColHex, hexDelegate);
+        // 为 DisplayMode 列设置自定义委托
+        DisplayModeDelegate* displayModeDelegate = new DisplayModeDelegate(addressView);
+        addressView->setItemDelegateForColumn(AddressListModel::ColDisplayMode, displayModeDelegate);
 
         // 为 Signed 列设置自定义委托
         SignedDelegate* signedDelegate = new SignedDelegate(addressView);
@@ -157,6 +183,7 @@ void MainWindow::replaceAddressTable()
 // ==================== 定时器 ====================
 void MainWindow::initTimers()
 {
+    // 数据冻结功能定时器
     freezeTimer = new QTimer(this);
     connect(freezeTimer, &QTimer::timeout, this, [this]() {
         auto& items = addressModel->items();
@@ -175,6 +202,7 @@ void MainWindow::initTimers()
         });
     freezeTimer->start(500);
 
+    // 地址列表刷新定时器
     addressListRefreshTimer = new QTimer(this);
     connect(addressListRefreshTimer, &QTimer::timeout, this, [this]() {
         if (!m_attachedToProcess) return;
@@ -184,6 +212,7 @@ void MainWindow::initTimers()
         });
     addressListRefreshTimer->start(300);
 
+    // 进程存活检测定时器
     healthTimer = new QTimer(this);
     connect(healthTimer, &QTimer::timeout, this, [this]() {
         if (m_attachedToProcess && !ProcessManager::instance().isProcessAlive()) {
@@ -231,7 +260,14 @@ uint64_t MainWindow::resolveValue(const QString& text, ScanDataType dataType) co
         base = isHex ? 16 : 10;
     }
 
-    uint64_t iVal = trimmedText.toULongLong(&ok, base);
+    uint64_t iVal = 0;
+    // 十进制支持有符号负数输入
+    if (base == 10) {
+        int64_t signedVal = trimmedText.toLongLong(&ok, 10);
+        if (ok) std::memcpy(&iVal, &signedVal, sizeof(signedVal));
+    } else {
+        iVal = trimmedText.toULongLong(&ok, 16);
+    }
 
     // 3. 溢出与位宽截断 (模仿 CE 的数据类型溢出处理)
     if (!ok) return 0;
@@ -308,7 +344,90 @@ void MainWindow::connectSignals()
         this, &MainWindow::refreshUiControls);
 
     connect(ui->comboBox_Value_Data_Size, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &MainWindow::updateScanTypeComboBox);
+        this, [this](int) {
+            updateScanTypeComboBox();
+            autoFillFastScanAlignment(); // ★ 数据类型改变时自动更新对齐值
+
+            ScanDataType dt = parseDataTypeFromUI();
+
+            // ★ 浮点数类型时默认勾选"包含近似值"
+            if (isFloatingPoint(dt)) {
+                ui->checkBox_contain_approximate_value->setChecked(true);
+            }
+
+            // ★ 字节数组类型时默认勾选 Hex
+            if (dt == ScanDataType::ByteArray) {
+                ui->checkBox_Hex_Value->setChecked(true);
+            }
+        });
+
+    // ★ Hex 复选框切换：转换输入框内容 + 同步扫描结果显示模式
+    connect(ui->checkBox_Hex_Value, &QCheckBox::toggled, this, [this](bool hexMode) {
+        // 同步 Hex 模式到 DataProvider，使扫描结果值按十六进制显示
+        if (m_scanService) {
+            auto* provider = m_scanService->getDataProvider();
+            if (provider) {
+                provider->setHexDisplay(hexMode);
+                // 触发 ViewModel 刷新所有数值缓存列
+                m_resultModel->onRepositoryReplaced();
+            }
+        }
+        ScanDataType dt = parseDataTypeFromUI();
+        if (dt == ScanDataType::ByteArray) {
+            // ── 字节数组模式：每个 token 进制转换 ──
+            QString text = ui->lineEdit_ValueInput->text().trimmed();
+            if (text.isEmpty()) return;
+            QStringList tokens = text.split(' ', Qt::SkipEmptyParts);
+            QStringList converted;
+            for (const QString& tok : tokens) {
+                // 通配符保持不变
+                if (tok.contains('?')) { converted << tok.toUpper(); continue; }
+                bool ok = false;
+                if (hexMode) {
+                    // 十进制 → 十六进制
+                    uint val = tok.toUInt(&ok, 10);
+                    if (ok) converted << QString("%1").arg(val, 2, 16, QChar('0')).toUpper();
+                    else    converted << tok;
+                } else {
+                    // 十六进制 → 十进制
+                    uint val = tok.toUInt(&ok, 16);
+                    if (ok) converted << QString::number(val, 10);
+                    else    converted << tok;
+                }
+            }
+            if (!converted.isEmpty()) {
+                m_updatingAobInput = true;
+                ui->lineEdit_ValueInput->setText(converted.join(' '));
+                ui->lineEdit_ValueInput->setCursorPosition(converted.join(' ').length());
+                m_updatingAobInput = false;
+            }
+        } else if (dt != ScanDataType::AsciiString && dt != ScanDataType::Utf8String
+            && dt != ScanDataType::Utf16String && dt != ScanDataType::Structure
+            && dt != ScanDataType::ByteArray) {
+            // ── 数值模式：单值转换 ──
+            auto convertLineEdit = [hexMode](QLineEdit* le) {
+                QString text = le->text().trimmed();
+                if (text.isEmpty()) return;
+                bool ok = false;
+                if (hexMode) {
+                    // 十进制 → 十六进制
+                    uint64_t val = text.toULongLong(&ok, 10);
+                    if (ok) le->setText(QString("0x%1").arg(val, 0, 16));
+                } else {
+                    // 十六进制 → 十进制（去 0x 前缀）
+                    QString raw = text;
+                    if (raw.startsWith("0x", Qt::CaseInsensitive)) raw = raw.mid(2);
+                    uint64_t val = raw.toULongLong(&ok, 16);
+                    if (ok && !(raw.length() == 1 && raw[0].isDigit() && hexMode == false)) {
+                        le->setText(QString::number(val, 10));
+                    }
+                }
+            };
+            convertLineEdit(ui->lineEdit_ValueInput);
+            if (ui->lineEdit_ValueInput2->isVisible())
+                convertLineEdit(ui->lineEdit_ValueInput2);
+        }
+    });
 
     connect(ui->checkBox_use_UTF8, &QCheckBox::clicked, this, [this](bool checked) {
         if (checked) ui->checkBox_use_UTF16->setChecked(false);
@@ -319,10 +438,57 @@ void MainWindow::connectSignals()
         if (checked) ui->checkBox_use_UTF8->setChecked(false);
         refreshUiControls(); // 状态变更后刷新 UI
         });
-    connect(ui->checkBox_fast_scan, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
+    connect(ui->checkBox_fast_scan, &QCheckBox::toggled, this, [this](bool) {
+        autoFillFastScanAlignment(); // ★ 开关快速扫描时自动填充/重置对齐值
+        refreshUiControls();
+    });
+
+    // ★ 字节数组 + Hex 模式：自动每 2 字符加空格（如 "EABE?E?A" → "EA BE ?E ?A"）
+    connect(ui->lineEdit_ValueInput, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (parseDataTypeFromUI() != ScanDataType::ByteArray) return;
+        if (!ui->checkBox_Hex_Value->isChecked()) return; // 十进制模式不自动格式化
+        if (m_updatingAobInput) return;
+        m_updatingAobInput = true;
+
+        // 去空格后每 2 字符一组
+        QString raw = text;
+        raw.remove(QChar(' '));
+        QStringList groups;
+        for (int i = 0; i < raw.length(); i += 2)
+            groups << raw.mid(i, 2);
+        QString formatted = groups.join(' ');
+
+        if (formatted != text) {
+            ui->lineEdit_ValueInput->setText(formatted);
+            // 光标始终保持在末尾
+            ui->lineEdit_ValueInput->setCursorPosition(formatted.length());
+        }
+
+        m_updatingAobInput = false;
+    });
     connect(ui->checkBox_percent, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
     connect(ui->checkBox_repeat, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
-    connect(ui->checkBox_Only_Simple_Value, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
+    connect(ui->checkBox_contain_approximate_value, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
+
+    // ★ 模块过滤下拉框 → ViewModel 过滤
+    connect(m_scanModuleFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+        if (!m_resultModel) return;
+        uint64_t base = m_scanModuleFilter->itemData(index).value<uint64_t>();
+        if (base == 0) {
+            m_resultModel->clearModuleFilter();
+        } else {
+            // 查找模块大小
+            const auto& modules = ProcessManager::instance().modules();
+            for (const auto& mod : modules) {
+                if (mod.base == base) {
+                    m_resultModel->setModuleFilter(base, mod.size);
+                    break;
+                }
+            }
+        }
+        updateCountLabels();
+    });
 
 }
 
@@ -359,9 +525,26 @@ void MainWindow::onOpenProcess()
 
         moduleBox->clear();
         moduleBox->addItem(tr("全部模块"));
+
+        // ★ 先清空扫描结果模块过滤列表，再重新填充
+        m_scanModuleFilter->blockSignals(true);
+        m_scanModuleFilter->clear();
+        m_scanModuleFilter->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
+
         const auto& modules = ProcessManager::instance().modules();
-        for (const auto& mod : modules)
+        for (const auto& mod : modules) {
             moduleBox->addItem(QString::fromStdString(mod.name));
+
+            // ★ 扫描结果过滤下拉框：存储 base 地址作为用户数据
+            m_scanModuleFilter->addItem(QString::fromStdString(mod.name),
+                                        QVariant::fromValue(mod.base));
+        }
+
+        m_scanModuleFilter->setCurrentIndex(0);
+        m_scanModuleFilter->blockSignals(false);
+
+        // ★ 清除 ViewModel 的模块过滤，显示所有结果
+        m_resultModel->clearModuleFilter();
     }
     else {
         QMessageBox::warning(this, tr("错误"), tr("附加进程失败."));
@@ -373,8 +556,7 @@ void MainWindow::onOpenProcess()
     //refreshUiControls();
 }
 
-// ==================== 构建扫描请求（保留原解析逻辑） ====================
-// mainwindow.cpp
+
 
 void MainWindow::initDataTypeComboBox()
 {
@@ -399,6 +581,34 @@ void MainWindow::initDataTypeComboBox()
 
     // 默认选中 4 字节
     ui->comboBox_Value_Data_Size->setCurrentIndex(3);
+
+    // ★ 默认勾选快速扫描，并根据数据类型自动填充对齐值
+    ui->checkBox_fast_scan->setChecked(true);
+    autoFillFastScanAlignment();
+}
+
+// ★ 根据当前选中的数据类型，自动填充快速扫描的对齐值
+void MainWindow::autoFillFastScanAlignment()
+{
+    if (!ui->checkBox_fast_scan->isChecked()) {
+        ui->lineEdit_fast_scan_value->setText("1");
+        return;
+    }
+
+    ScanDataType dt = parseDataTypeFromUI();
+    size_t alignment = 1;
+    switch (dt) {
+    case ScanDataType::Int8:     alignment = 1; break;
+    case ScanDataType::Int16:    alignment = 2; break;
+    case ScanDataType::Int32:    alignment = 4; break;
+    case ScanDataType::Int64:    alignment = 8; break;
+    case ScanDataType::Float32:  alignment = 4; break;
+    case ScanDataType::Float64:  alignment = 8; break;
+    case ScanDataType::Bit:      alignment = 1; break;
+    // 字符串、字节数组、All、结构体等 — 非数值类型默认 alignment=1
+    default:                     alignment = 1; break;
+    }
+    ui->lineEdit_fast_scan_value->setText(QString::number(alignment));
 }
 
 ScanDataType MainWindow::parseDataTypeFromUI() const
@@ -457,12 +667,23 @@ ValueParams MainWindow::parseValueParams(ScanType type, ScanDataType dataType) c
     }
     else {
         bool ok = false;
-        vp.value1 = isHex ? text1.toULongLong(&ok, 16) : text1.toULongLong(&ok, 10);
+        // 十进制支持负数输入（用户输入 -1024 → 作为有符号解析）
+        if (isHex) {
+            vp.value1 = text1.toULongLong(&ok, 16);
+        } else {
+            int64_t signedVal = text1.toLongLong(&ok, 10);
+            if (ok) std::memcpy(&vp.value1, &signedVal, sizeof(signedVal));
+        }
         if (!ok && !text1.isEmpty()) return {};
         if (type == ScanType::Between) {
             QString text2 = ui->lineEdit_ValueInput2->text();
             bool ok2 = false;
-            vp.value2 = isHex ? text2.toULongLong(&ok2, 16) : text2.toULongLong(&ok2, 10);
+            if (isHex) {
+                vp.value2 = text2.toULongLong(&ok2, 16);
+            } else {
+                int64_t signedVal2 = text2.toLongLong(&ok2, 10);
+                if (ok2) std::memcpy(&vp.value2, &signedVal2, sizeof(signedVal2));
+            }
             if (!ok2) return {};
         }
     }
@@ -497,19 +718,49 @@ AobParams MainWindow::parseAobParams() const
     AobParams ap;
     QString text = ui->lineEdit_ValueInput->text().trimmed();
     QStringList tokens = text.split(' ', Qt::SkipEmptyParts);
+
     for (const QString& tok : tokens) {
-        if (tok.compare("??", Qt::CaseInsensitive) == 0 || tok == "?") {
+        // ── "??" 完全通配 ──
+        if (tok.compare("??", Qt::CaseInsensitive) == 0) {
             ap.pattern.push_back(0);
-            ap.mask.push_back(false);
+            ap.mask.push_back(0x00);    // 完全通配
+            continue;
         }
-        else {
+
+        // ── "?E" 仅低半字节匹配 ──
+        if (tok.at(0) == QChar('?')) {
             bool ok = false;
-            uint32_t val = tok.toUInt(&ok, 16);
-            if (!ok || val > 0xFF) return {};
-            ap.pattern.push_back(static_cast<uint8_t>(val));
-            ap.mask.push_back(true);
+            uint32_t val = tok.mid(1).toUInt(&ok, 16);
+            if (!ok || val > 0x0F) return {};
+            ap.pattern.push_back(static_cast<uint8_t>(val & 0x0F));
+            ap.mask.push_back(0x0F);    // 只检查低 4 位
+            continue;
         }
+
+        // ── "3?" 仅高半字节匹配或 "3E" 全字节匹配 ──
+        if (tok.length() == 2 && tok.at(1) == QChar('?')) {
+            bool ok = false;
+            uint32_t val = tok.left(1).toUInt(&ok, 16);
+            if (!ok || val > 0x0F) return {};
+            ap.pattern.push_back(static_cast<uint8_t>((val & 0x0F) << 4));
+            ap.mask.push_back(0xF0);    // 只检查高 4 位
+            continue;
+        }
+
+        // ── 全字节匹配 ──
+        bool ok = false;
+        uint32_t val = tok.toUInt(&ok, 16);
+        if (!ok || val > 0xFF) return {};
+        ap.pattern.push_back(static_cast<uint8_t>(val));
+        ap.mask.push_back(0xFF);        // 全字节匹配
     }
+
+    // ── 限制最大 256 字节 ──
+    if (ap.pattern.size() > 256) {
+        ap.pattern.resize(256);
+        ap.mask.resize(256);
+    }
+
     return ap;
 }
 
@@ -584,7 +835,7 @@ void MainWindow::onFirstScan()
     refreshUiControls();
 }
 
-
+// ==================== 构建扫描请求（保留原解析逻辑） ====================
 ScanRequest MainWindow::buildScanRequest(ScanMode mode) const
 {
     ScanRequest req;
@@ -627,8 +878,9 @@ ScanRequest MainWindow::buildScanRequest(ScanMode mode) const
     req.memFilter.CopyOnWrite       = ui->checkBox_copy_on_write->isChecked();
 
 
-    // ===== 其他 UI 选项（已有但未赋值） =====
+    // ===== 其他 UI 选项 =====
     req.percentMode = ui->checkBox_percent->isChecked();
+    req.containApproximateValue = ui->checkBox_contain_approximate_value->isChecked();
 
     // 根据模式填充参数
     if (req.dataType == ScanDataType::Structure) {
@@ -754,6 +1006,29 @@ void MainWindow::onScanCompleted()
 {
 	m_isFirstScan = false;
     m_isScanning = false;
+
+    // ★ 扫描完成后，同步扫描结果模块过滤下拉框到扫描请求的模块范围
+    {
+        QString selectedModule = ui->comboBox_process_module_List->currentText();
+        if (selectedModule == tr("全部模块")) {
+            m_resultModel->clearModuleFilter();
+        } else {
+            const auto& modules = ProcessManager::instance().modules();
+            for (const auto& mod : modules) {
+                if (QString::fromStdString(mod.name) == selectedModule) {
+                    m_resultModel->setModuleFilter(mod.base, mod.size);
+                    break;
+                }
+            }
+        }
+        // 同步下拉框选中项
+        int filterIdx = m_scanModuleFilter->findText(selectedModule);
+        if (filterIdx >= 0) {
+            m_scanModuleFilter->blockSignals(true);
+            m_scanModuleFilter->setCurrentIndex(filterIdx);
+            m_scanModuleFilter->blockSignals(false);
+        }
+    }
 
     refreshUiControls();
     updateScanTypeComboBox();
@@ -923,6 +1198,14 @@ void MainWindow::resetToNoProcess()
     setWindowTitle("Cheat Engine");
     ui->comboBox_process_module_List->clear();
     ui->comboBox_process_module_List->addItem(tr("全部模块"));
+
+    // ★ 清除扫描结果模块过滤列表
+    m_scanModuleFilter->blockSignals(true);
+    m_scanModuleFilter->clear();
+    m_scanModuleFilter->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
+    m_scanModuleFilter->blockSignals(false);
+    m_scanModuleFilter->setCurrentIndex(0);
+    m_resultModel->clearModuleFilter();
 
     refreshUiControls();
     ui->progressBar->setVisible(false);
@@ -1097,8 +1380,9 @@ UiContext MainWindow::computeUiContext() const
         }
     }
 
-    ctx.showHex = !ctx.isStringMode && !ctx.isByteArrayMode && !ctx.isStructureMode
-        && !isFloatingPoint(ctx.dataType) && !ctx.isAllMode; // All 内部复杂，不显示 Hex
+    ctx.showHex = (!ctx.isStringMode && !ctx.isStructureMode
+        && !isFloatingPoint(ctx.dataType) && !ctx.isAllMode)  // 常规数值
+        || ctx.isByteArrayMode;                                // 字节数组始终显示 Hex
     if (ctx.isFirstScan && ctx.firstScanType == ScanType::UnknownInitial) ctx.showHex = false;
     if (!ctx.isFirstScan && ctx.inputFieldsNeeded == 0) ctx.showHex = false;
 
@@ -1111,7 +1395,7 @@ UiContext MainWindow::computeUiContext() const
     ctx.showNot = !ctx.isStringMode && !ctx.isByteArrayMode && !ctx.isStructureMode
         && ctx.inputFieldsNeeded > 0;
 
-    ctx.showOnlySimpleValue = isFloatingPoint(ctx.dataType)
+    ctx.showContainApproximateValue = isFloatingPoint(ctx.dataType)
         && !ctx.isStringMode
         && !ctx.isByteArrayMode
         && !ctx.isStructureMode
@@ -1162,7 +1446,7 @@ void MainWindow::refreshUiControls()
     ui->checkBox_use_UTF8->hide();
     ui->checkBox_use_UTF16->hide();
     ui->checkBox_Caps_Check->hide();
-    ui->checkBox_Only_Simple_Value->hide();
+    ui->checkBox_contain_approximate_value->hide();
     ui->checkBox_percent->hide();
     ui->checkBox_repeat->hide();
 
@@ -1207,13 +1491,16 @@ void MainWindow::refreshUiControls()
         ui->checkBox_use_UTF8->setEnabled(!ctx.isScanning);
         ui->checkBox_use_UTF16->setEnabled(!ctx.isScanning);
         ui->checkBox_Caps_Check->setEnabled(!ctx.isScanning);
-        ui->checkBox_Only_Simple_Value->setEnabled(!ctx.isScanning);
         return; // 字符串模式下其余控件均不显示
     }
 
     // ######## 字节数组模式 ########
     if (ctx.isByteArrayMode) {
-        // 仅保留输入框，可能的 Hex? 不需要
+        // 显示 Hex 复选框（字节数组默认 Hex 显示）
+        if (ctx.showHex) {
+            ui->checkBox_Hex_Value->show();
+            ui->checkBox_Hex_Value->setEnabled(!ctx.isScanning);
+        }
         return;
     }
 
@@ -1251,9 +1538,9 @@ void MainWindow::refreshUiControls()
         ui->checkBox_repeat->setEnabled(!ctx.isScanning);
     }
 
-    if (ctx.showOnlySimpleValue) {
-        ui->checkBox_Only_Simple_Value->show();
-        ui->checkBox_Only_Simple_Value->setEnabled(!ctx.isScanning);
+    if (ctx.showContainApproximateValue) {
+        ui->checkBox_contain_approximate_value->show();
+        ui->checkBox_contain_approximate_value->setEnabled(!ctx.isScanning);
     }
 
 
@@ -1294,14 +1581,32 @@ bool MainWindow::validateScanInput(ScanMode mode)
             QMessageBox::warning(this, tr("错误"), tr("请输入字节数组模式（如：AA ?? BB）。"));
             return false;
         }
-        // 简单验证：至少有一个有效字节或通配符
+        // 支持 ??、?E、3?、3E 四种格式
         QStringList tokens = text.split(' ', Qt::SkipEmptyParts);
         bool hasValid = false;
         for (const QString& tok : tokens) {
-            if (tok.compare("??", Qt::CaseInsensitive) == 0 || tok == "?") {
+            // "??" 完全通配
+            if (tok.compare("??", Qt::CaseInsensitive) == 0) {
                 hasValid = true;
                 continue;
             }
+            // "?E" 仅低半字节
+            if (tok.length() == 2 && tok.at(0) == QChar('?')) {
+                bool ok = false;
+                tok.mid(1).toUInt(&ok, 16);
+                if (ok) { hasValid = true; continue; }
+                QMessageBox::warning(this, tr("错误"), QString(tr("无效的字节：“%1”")).arg(tok));
+                return false;
+            }
+            // "3?" 仅高半字节
+            if (tok.length() == 2 && tok.at(1) == QChar('?')) {
+                bool ok = false;
+                tok.left(1).toUInt(&ok, 16);
+                if (ok) { hasValid = true; continue; }
+                QMessageBox::warning(this, tr("错误"), QString(tr("无效的字节：“%1”")).arg(tok));
+                return false;
+            }
+            // "3E" 全字节
             bool ok = false;
             uint val = tok.toUInt(&ok, 16);
             if (ok && val <= 0xFF) {
@@ -1371,14 +1676,23 @@ bool MainWindow::validateScanInput(ScanMode mode)
         bool ok = false;
         QString text1 = ui->lineEdit_ValueInput->text().trimmed();
         int base = isHex ? 16 : 10;
-        text1.toULongLong(&ok, base);
+        // 十进制支持有符号负数输入
+        if (isHex) {
+            text1.toULongLong(&ok, 16);
+        } else {
+            text1.toLongLong(&ok, 10);
+        }
         if (!ok) {
             QMessageBox::warning(this, tr("错误"), tr("无效的整数格式。"));
             return false;
         }
         if (ui->lineEdit_ValueInput2->isVisible()) {
             ok = false;
-            ui->lineEdit_ValueInput2->text().toULongLong(&ok, base);
+            if (isHex) {
+                ui->lineEdit_ValueInput2->text().toULongLong(&ok, 16);
+            } else {
+                ui->lineEdit_ValueInput2->text().toLongLong(&ok, 10);
+            }
             if (!ok) {
                 QMessageBox::warning(this, tr("错误"), tr("第二个数值不是有效的整数。"));
                 return false;
@@ -1387,6 +1701,95 @@ bool MainWindow::validateScanInput(ScanMode mode)
     }
 
     return true;
+}
+
+// ==================== 软件捐赠/关于对话框 ====================
+void MainWindow::onAboutDonate()
+{
+    // 创建由 ui_About.h 生成的 About 对话框
+    QDialog dlg(this);
+    Ui::Dialog aboutUi;
+    aboutUi.setupUi(&dlg);
+    dlg.setWindowTitle(tr("软件捐赠 / 关于"));
+    dlg.resize(350, 400);
+
+    // ★ 加载 Deemo_Yuan 图片到 QLabel（scaledContents=true，自动按比例缩放填满）
+    QPixmap deemoPixmap(":/Deemo_Yuan.JPG");
+    if (!deemoPixmap.isNull()) {
+        aboutUi.label_Deemo_Yuan->setPixmap(deemoPixmap);
+    }
+
+    // ★ 捐贈按鈕 → 弹出微信支付和支付宝二维码
+    QObject::connect(aboutUi.pushButton_Donate, &QPushButton::clicked, [&dlg]() {
+        // 创建可拉伸的二维码弹窗
+        QDialog qrDlg(&dlg);
+        qrDlg.setWindowTitle(QDialog::tr("扫码捐赠 / Scan to Donate"));
+        qrDlg.resize(480, 380);
+
+        QVBoxLayout* qrLayout = new QVBoxLayout(&qrDlg);
+        QHBoxLayout* qrImagesLayout = new QHBoxLayout();
+
+        // 微信支付二维码（可缩放）
+        QVBoxLayout* wechatCol = new QVBoxLayout();
+        QLabel* wechatLabel = new QLabel(QDialog::tr("微信支付 / WeChat Pay"), &qrDlg);
+        wechatLabel->setAlignment(Qt::AlignCenter);
+        wechatLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        QLabel* wechatImg = new QLabel(&qrDlg);
+        wechatImg->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        wechatImg->setAlignment(Qt::AlignCenter);
+        wechatImg->setScaledContents(true);
+        QPixmap wechatPixmap(":/WeChatPay.JPG");
+        if (!wechatPixmap.isNull()) {
+            wechatImg->setPixmap(wechatPixmap);
+            // 设置最小尺寸让图片有足够空间
+            wechatImg->setMinimumSize(160, 200);
+        }
+        wechatCol->addWidget(wechatLabel);
+        wechatCol->addWidget(wechatImg, 1);
+        qrImagesLayout->addLayout(wechatCol, 1);
+
+        // 支付宝二维码（可缩放）
+        QVBoxLayout* alipayCol = new QVBoxLayout();
+        QLabel* alipayLabel = new QLabel(QDialog::tr("支付宝 / AliPay"), &qrDlg);
+        alipayLabel->setAlignment(Qt::AlignCenter);
+        alipayLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        QLabel* alipayImg = new QLabel(&qrDlg);
+        alipayImg->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        alipayImg->setAlignment(Qt::AlignCenter);
+        alipayImg->setScaledContents(true);
+        QPixmap alipayPixmap(":/AliPay.JPG");
+        if (!alipayPixmap.isNull()) {
+            alipayImg->setPixmap(alipayPixmap);
+            alipayImg->setMinimumSize(160, 200);
+        }
+        alipayCol->addWidget(alipayLabel);
+        alipayCol->addWidget(alipayImg, 1);
+        qrImagesLayout->addLayout(alipayCol, 1);
+
+        qrLayout->addLayout(qrImagesLayout);
+
+        // 关闭按钮（固定在底部，不缩放）
+        QPushButton* closeBtn = new QPushButton(QDialog::tr("关闭"), &qrDlg);
+        qrLayout->addWidget(closeBtn, 0, Qt::AlignCenter);
+        QObject::connect(closeBtn, &QPushButton::clicked, &qrDlg, &QDialog::accept);
+
+        qrDlg.exec();
+    });
+
+    // ★ 重构作者网站主页
+    QObject::connect(aboutUi.pushButton_Author_Homepage, &QPushButton::clicked, []() {
+        QDesktopServices::openUrl(QUrl("https://space.bilibili.com/131403708?spm_id_from=333.1387.0.0"));
+    });
+
+    // ★ GitHub 项目主页
+    QObject::connect(aboutUi.pushButton_GitHub_Homepage, &QPushButton::clicked, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/1003761249/CheatEngine-With-kdmapper"));
+    });
+
+    // ★ 确认按钮
+    QObject::connect(aboutUi.pushButton_confirm, &QPushButton::clicked, &dlg, &QDialog::accept);
+
+    dlg.exec();
 }
 
 void MainWindow::onLanguageChanged(int index)

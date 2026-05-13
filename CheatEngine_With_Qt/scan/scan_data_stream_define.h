@@ -120,9 +120,14 @@ struct StringParams {
 };
 
 // 字节数组 (AOB) 参数
+// mask[i] 是 nibble 级掩码：
+//   0xFF — 全字节匹配
+//   0xF0 — 仅高半字节匹配 (如 "3?")
+//   0x0F — 仅低半字节匹配 (如 "?E")
+//   0x00 — 完全通配 (如 "??")
 struct AobParams {
     std::vector<uint8_t> pattern;
-    std::vector<bool>   mask;
+    std::vector<uint8_t> mask;   // 原为 vector<bool>，改为 nibble 级别 uint8_t 掩码
 };
 
 // 结构体中的一个成员
@@ -177,7 +182,7 @@ struct ScanRequest {
     MemoryFilter memFilter;
 
     bool percentMode = false;
-    bool OnlySimpleValue = false;
+    bool containApproximateValue = false;
 
     std::shared_ptr<const std::vector<ScanResult>> prevResults = nullptr;
 };
