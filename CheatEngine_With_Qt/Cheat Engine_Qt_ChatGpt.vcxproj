@@ -118,8 +118,10 @@
     <ClCompile Include="scan\scan_result_view_model.cpp" />
     <ClCompile Include="scan\scan_service.cpp" />
     <ClCompile Include="ViewModel\address_list_model.cpp" />
+    <ClCompile Include="ViewModel\display_mode_delegate.cpp" />
     <ClCompile Include="ViewModel\MainWindow.cpp" />
     <ClCompile Include="ViewModel\process_dialog.cpp" />
+    <ClCompile Include="ViewModel\type_delegate.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Factory\memory_accessor_factory.h" />
@@ -139,6 +141,8 @@
     <ClInclude Include="interface\imemory_region_enumerator.h" />
     <ClInclude Include="interface\imodule_enumerator.h" />
     <ClInclude Include="interface\iprocess_enumerator.h" />
+    <QtMoc Include="ViewModel\type_delegate.h" />
+    <QtMoc Include="ViewModel\display_mode_delegate.h" />
     <QtMoc Include="ViewModel\address_list_model.h" />
     <QtMoc Include="ViewModel\process_dialog.h" />
     <QtMoc Include="ViewModel\MainWindow.h" />
@@ -167,6 +171,7 @@
     <QtTranslation Include="language_translations\Translation_en.ts" />
   </ItemGroup>
   <ItemGroup>
+    <QtUic Include="ui\Add_Or_Change_Address.ui" />
     <QtUic Include="ui\CheatEngine_With_Qt.ui" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

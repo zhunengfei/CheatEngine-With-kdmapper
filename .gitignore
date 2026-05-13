@@ -4,6 +4,9 @@
 *.log
 *.o
 *.tmp
+*.zip
+*.7z
+*.tar.gz
 
 /Debug/
 /Release/

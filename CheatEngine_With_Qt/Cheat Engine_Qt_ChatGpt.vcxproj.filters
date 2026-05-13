@@ -32,6 +32,9 @@
     <Filter Include="utils\language">
       <UniqueIdentifier>{df5421cc-bdc8-4c86-81cf-94791a3dba8b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ui">
+      <UniqueIdentifier>{ad09a0ea-786f-4116-b74b-28447b491f5a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="scan\scan_result_view_model.h">
@@ -50,6 +53,12 @@
       <Filter>Form Files</Filter>
     </QtMoc>
     <QtMoc Include="ViewModel\address_list_model.h">
+      <Filter>Form Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ViewModel\display_mode_delegate.h">
+      <Filter>Form Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ViewModel\type_delegate.h">
       <Filter>Form Files</Filter>
     </QtMoc>
   </ItemGroup>
@@ -116,6 +125,12 @@
       <Filter>Form Files</Filter>
     </ClCompile>
     <ClCompile Include="ViewModel\process_dialog.cpp">
+      <Filter>Form Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ViewModel\display_mode_delegate.cpp">
+      <Filter>Form Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ViewModel\type_delegate.cpp">
       <Filter>Form Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -230,7 +245,10 @@
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="ui\CheatEngine_With_Qt.ui">
-      <Filter>Form Files</Filter>
+      <Filter>ui</Filter>
+    </QtUic>
+    <QtUic Include="ui\Add_Or_Change_Address.ui">
+      <Filter>ui</Filter>
     </QtUic>
   </ItemGroup>
 </Project>
