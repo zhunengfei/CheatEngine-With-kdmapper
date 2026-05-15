@@ -51,8 +51,19 @@ std::string ScanDataProvider::getAddressDisplay(uint64_t address) const {
 		if (!snapshot->readData(address, buf.data(), buf.size()))
 			return "---";
 		if (isStringType(type)) {
-			std::string str(reinterpret_cast<char*>(buf.data()), strnlen(reinterpret_cast<char*>(buf.data()), maxRead));
-			return EncodingFormatter::formatString(str, type);
+			if (type == ScanDataType::Utf16String) {
+				// UTF-16 LE：将原始字节作为 uint16_t* 解析并转为 UTF-8 可读文本
+				const uint16_t* u16 = reinterpret_cast<const uint16_t*>(buf.data());
+				size_t u16len = maxRead / 2;
+				// 找到空终止符
+				size_t realLen = 0;
+				while (realLen < u16len && u16[realLen] != 0) ++realLen;
+				return EncodingFormatter::formatUtf16String(u16, realLen);
+			} else {
+				std::string str(reinterpret_cast<char*>(buf.data()), strnlen(reinterpret_cast<char*>(buf.data()), maxRead));
+				// formatString 对 Ascii/Utf8 直接返回原字符串
+				return EncodingFormatter::formatString(str, type);
+			}
 		}
 		else if (isByteArrayType(type)) {
 			return EncodingFormatter::formatByteArray(buf.data(), maxRead);
@@ -75,8 +86,17 @@ std::string ScanDataProvider::readCurrentFromMemory(uint64_t address, ScanDataTy
 		if (!mem->read(address, buf.data(), buf.size()))
 			return "---";
 		if (isStringType(type)) {
-			std::string str(reinterpret_cast<char*>(buf.data()), strnlen(reinterpret_cast<char*>(buf.data()), maxRead));
-			return EncodingFormatter::formatString(str, type);
+			if (type == ScanDataType::Utf16String) {
+				// UTF-16 LE：将原始字节作为 uint16_t* 解析并转为 UTF-8
+				const uint16_t* u16 = reinterpret_cast<const uint16_t*>(buf.data());
+				size_t u16len = maxRead / 2;
+				size_t realLen = 0;
+				while (realLen < u16len && u16[realLen] != 0) ++realLen;
+				return EncodingFormatter::formatUtf16String(u16, realLen);
+			} else {
+				std::string str(reinterpret_cast<char*>(buf.data()), strnlen(reinterpret_cast<char*>(buf.data()), maxRead));
+				return EncodingFormatter::formatString(str, type);
+			}
 		}
 		else if (isByteArrayType(type)) {
 			return EncodingFormatter::formatByteArray(buf.data(), maxRead);

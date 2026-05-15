@@ -117,6 +117,7 @@
     <ClCompile Include="scan\scan_result_repository.cpp" />
     <ClCompile Include="scan\scan_result_view_model.cpp" />
     <ClCompile Include="scan\scan_service.cpp" />
+    <ClCompile Include="ViewModel\Add_Or_Change_Address.cpp" />
     <ClCompile Include="ViewModel\address_list_model.cpp" />
     <ClCompile Include="ViewModel\display_mode_delegate.cpp" />
     <ClCompile Include="ViewModel\MainWindow.cpp" />
@@ -146,6 +147,7 @@
     <QtMoc Include="ViewModel\address_list_model.h" />
     <QtMoc Include="ViewModel\process_dialog.h" />
     <QtMoc Include="ViewModel\MainWindow.h" />
+    <QtMoc Include="ViewModel\Add_Or_Change_Address.h" />
     <QtMoc Include="language_translations\translator_manager.h" />
     <ClInclude Include="interface\iprocess_memory_snapshot.h" />
     <ClInclude Include="interface\iscan_value_provider.h" />

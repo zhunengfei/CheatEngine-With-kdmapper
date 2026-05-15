@@ -101,8 +101,9 @@ void ScanEngine::taskFirstScan(const ScanRequest& request, MemoryRegion region,
 			size_t maxPatternLen = 0;
 			if (isStringType(request.dataType)) {
 				if (auto* sp = std::get_if<StringParams>(&request.params)) {
+					// sp->text.length() 对于 Utf16String 已经是 UTF-16 LE 原始字节长度
+					// 对于 Ascii/Utf8 也是字节长度，所以不需要额外乘 2
 					maxPatternLen = sp->text.length();
-					if (request.dataType == ScanDataType::Utf16String) maxPatternLen *= 2;
 				}
 			} else {
 				if (auto* ap = std::get_if<AobParams>(&request.params))
@@ -289,7 +290,8 @@ void ScanEngine::taskNextScan(const ScanRequest& request,
 			if (isStringType(request.dataType)) {
 				auto* sp = std::get_if<StringParams>(&request.params);
 				if (sp && !sp->text.empty()) {
-					size_t len = (request.dataType == ScanDataType::Utf16String) ? sp->text.length() * 2 : sp->text.length();
+					// sp->text.length() 对于 Utf16String 已经是 UTF-16 LE 的字节数
+					size_t len = sp->text.length();
 					std::vector<uint8_t> buf(len);
 					if (currentSnapshot->readData(res.address, buf.data(), len)) {
 						std::vector<uint64_t> matched;
@@ -438,21 +440,19 @@ void ScanEngine::performStringSearch(const std::vector<uint8_t>& buf, uint64_t b
 		}
 	}
 	else if (type == ScanDataType::Utf16String) {
-		// 将 UTF-8 搜索字符串正确转为 UTF-16（支持中文等多字节字符）
-		int wideLen = MultiByteToWideChar(CP_UTF8, 0, p.text.data(), static_cast<int>(p.text.length()), nullptr, 0);
-		if (wideLen <= 0) return;
-		std::vector<uint16_t> target16(wideLen);
-		MultiByteToWideChar(CP_UTF8, 0, p.text.data(), static_cast<int>(p.text.length()),
-			reinterpret_cast<wchar_t*>(target16.data()), wideLen);
+		// p.text 来自 parseStringParams()，存的是 UTF-16 LE 原始字节
+		// 直接将其作为 uint16_t 数组使用，无需 MultiByteToWideChar 二次转换
+		size_t tBytes = p.text.length();
+		if (buf.size() < tBytes || tBytes < 2 || (tBytes % 2) != 0) return;
 
-		size_t tBytes = target16.size() * 2;
-		if (buf.size() < tBytes) return;
+		const uint16_t* target16 = reinterpret_cast<const uint16_t*>(p.text.data());
+		size_t targetLen = tBytes / 2;
 
-		// UTF-16 扫描通常按 2 字节对齐
+		// UTF-16 扫描按 2 字节对齐（小端序 LE）
 		for (size_t i = 0; i <= buf.size() - tBytes; i += 2) {
 			const uint16_t* ptr = reinterpret_cast<const uint16_t*>(buf.data() + i);
 			bool match = true;
-			for (size_t k = 0; k < target16.size(); ++k) {
+			for (size_t k = 0; k < targetLen; ++k) {
 				if (p.caseSensitive) {
 					if (ptr[k] != target16[k]) { match = false; break; }
 				}

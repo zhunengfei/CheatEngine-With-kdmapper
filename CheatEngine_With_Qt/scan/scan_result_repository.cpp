@@ -55,4 +55,43 @@ void ScanResultRepository::clearScanMetadata() {
     m_metadata = ScanMetadata{};
 }
 
+// ===== "上一次扫描" 结果快照 =====
+
+void ScanResultRepository::saveAsPreviousResults()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> prevLock(m_prevMutex);
+
+    // 保存当前结果到快照
+    m_previousScanResultSnapshot.results = std::move(m_result_data);
+    m_result_data.clear();
+    m_generation.fetch_add(1, std::memory_order_release);
+}
+
+bool ScanResultRepository::hasPreviousResults() const
+{
+    std::lock_guard<std::mutex> prevLock(m_prevMutex);
+    return !m_previousScanResultSnapshot.results.empty();
+}
+
+bool ScanResultRepository::swapWithPrevious()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> prevLock(m_prevMutex);
+
+    if (m_previousScanResultSnapshot.results.empty())
+        return false;
+
+    // 交换当前结果与快照
+    m_result_data.swap(m_previousScanResultSnapshot.results);
+    m_generation.fetch_add(1, std::memory_order_release);
+    return true;
+}
+
+void ScanResultRepository::clearPreviousResults()
+{
+    std::lock_guard<std::mutex> prevLock(m_prevMutex);
+    m_previousScanResultSnapshot.results.clear();
+}
+
 

@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QMenuBar>
 #include <QAction>
+#include <QActionGroup>
 #include <QGraphicsScene>
 #include <QPixmap>
 #include <QDesktopServices>
@@ -38,7 +39,7 @@ struct UiContext {
     bool showFastScanOptions = false;
     bool showStringOptions = false; // UTF-8/16, 区分大小写
     bool showNot = false;
-    bool showCodeSection = true;    // “包含代码段”始终可见（除结构体）
+    bool showCodeSection = true;    // "包含代码段"始终可见（除结构体）
     bool showWritableExecutable = true;
     bool showPercent = false;
     bool showRepeat = false;
@@ -51,6 +52,7 @@ struct UiContext {
 
     bool newScanButtonEnabled = false;
     bool nextScanButtonEnabled = false;
+    bool preFindButtonEnabled = false;
     QString newScanText;
     QString nextScanText;
 
@@ -81,8 +83,6 @@ private:
     void initServices();
     void initMenuBar();
 
-    void initLanguageCombobox(int currentLangIndex = 0);
-    
     void initViews();
     void updateCountLabels();
     void setupScanResultView();
@@ -129,13 +129,14 @@ private:
     ScanResultViewModel* m_resultModel = nullptr;
     AddressListModel* addressModel = nullptr;
 
-    QTableView* scanResultView = nullptr;
-    QComboBox* m_scanModuleFilter = nullptr;
     QTableView* addressView = nullptr;
 
     QTimer* freezeTimer = nullptr;
     QTimer* addressListRefreshTimer = nullptr;
     QTimer* healthTimer = nullptr;
+
+    QActionGroup* m_langActionGroup = nullptr;
+    int m_currentLanguageIndex = 0;
 
     std::atomic<bool> m_isScanning = false;
     bool m_updatingAobInput = false;   // 防止字节数组自动空格递归
@@ -148,7 +149,7 @@ private:
 private slots:
     void onOpenProcess();
     void onFirstScan();
-    
+    void onPreFind();
     void onNextScan();
     void updateScanTypeComboBox();
     void onDoubleClickScanResult(const QModelIndex& index);
@@ -165,4 +166,7 @@ private slots:
 
     /// 打开软件捐赠/关于对话框
     void onAboutDonate();
+
+    /// 打开"手动添加地址"对话框
+    void onAddAddressManually();
 };

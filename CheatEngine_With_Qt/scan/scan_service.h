@@ -38,6 +38,10 @@ public:
 	void clear();
 	void reset();
 
+	// ===== "上一次扫描" 快照 =====
+	bool hasPreviousResults() const;
+	bool restorePreviousResults();
+
 signals:
 	void scanCompleted();
 	void progressChanged(int completed, int total);

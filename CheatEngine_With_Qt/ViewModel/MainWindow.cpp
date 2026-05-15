@@ -13,6 +13,7 @@
 #include "scan\scan_result_view_model.h"
 #include "scan\scan_data_stream_define.h"
 #include "language_translations\translator_manager.h"
+#include "ViewModel\Add_Or_Change_Address.h"
 
 #include <QTimer>
 #include <QTableView>
@@ -34,7 +35,6 @@ MainWindow::MainWindow(QWidget* parent)
     setupUi();
     initServices();
     initMenuBar();
-    initLanguageCombobox();
     initViews();
     initTimers();
     initDataTypeComboBox();
@@ -57,25 +57,35 @@ void MainWindow::initServices()
 
 void MainWindow::initMenuBar()
 {
-    // 创建"帮助"菜单
+    // ── 语言菜单 ──
+    QMenu* langMenu = menuBar()->addMenu(tr("语言"));
+
+    m_langActionGroup = new QActionGroup(this);
+    m_langActionGroup->setExclusive(true);
+
+    QAction* chineseAction = langMenu->addAction(tr("中文"));
+    chineseAction->setCheckable(true);
+    chineseAction->setChecked(m_currentLanguageIndex == 0);
+    chineseAction->setData(0);
+    m_langActionGroup->addAction(chineseAction);
+
+    QAction* englishAction = langMenu->addAction(tr("English"));
+    englishAction->setCheckable(true);
+    englishAction->setChecked(m_currentLanguageIndex == 1);
+    englishAction->setData(1);
+    m_langActionGroup->addAction(englishAction);
+
+    connect(m_langActionGroup, &QActionGroup::triggered, this, [this](QAction* action) {
+        int index = action->data().toInt();
+        onLanguageChanged(index);
+    });
+
+    // ── 帮助菜单 ──
     QMenu* helpMenu = menuBar()->addMenu(tr("帮助"));
 
     // "软件捐赠/关于"动作
     QAction* aboutAction = helpMenu->addAction(tr("软件捐赠 / 关于"));
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onAboutDonate);
-}
-
-void MainWindow::initLanguageCombobox(int currentLangIndex)
-{
-    ui->comboBox_language->blockSignals(true);
-    ui->comboBox_language->clear();
-    ui->comboBox_language->addItem(tr("language"));
-    ui->comboBox_language->addItem(tr("English"));
-    ui->comboBox_language->setCurrentIndex(currentLangIndex);
-    ui->comboBox_language->blockSignals(false);
-    connect(ui->comboBox_language, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &MainWindow::onLanguageChanged);
-    
 }
 
 void MainWindow::initViews()
@@ -101,34 +111,21 @@ void MainWindow::updateCountLabels()
 
 void MainWindow::setupScanResultView()
 {
-    QWidget* firstTab = ui->tabWidget->widget(0);
-    QVBoxLayout* tabLayout = new QVBoxLayout(firstTab);
-    tabLayout->setContentsMargins(0, 0, 0, 0);
+    // ── 配置已有的 tableView_Scan_Result ──
+    ui->tableView_Scan_Result->setModel(m_resultModel);
+    ui->tableView_Scan_Result->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    ui->tableView_Scan_Result->verticalHeader()->setDefaultSectionSize(24);
+    ui->tableView_Scan_Result->horizontalHeader()->setStretchLastSection(false);
+    ui->tableView_Scan_Result->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Interactive);
+    ui->tableView_Scan_Result->setColumnWidth(0, 150);
+    ui->tableView_Scan_Result->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Interactive);
+    ui->tableView_Scan_Result->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    ui->tableView_Scan_Result->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->tableView_Scan_Result->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-    // ★ 模块过滤下拉框
-    QHBoxLayout* filterLayout = new QHBoxLayout();
-    QLabel* filterLabel = new QLabel(tr("模块过滤:"), firstTab);
-    m_scanModuleFilter = new QComboBox(firstTab);
-    m_scanModuleFilter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    filterLayout->addWidget(filterLabel);
-    filterLayout->addWidget(m_scanModuleFilter, 1);
-    tabLayout->addLayout(filterLayout);
-
-    scanResultView = new QTableView(firstTab);
-    scanResultView->setModel(m_resultModel);
-    scanResultView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    scanResultView->verticalHeader()->setDefaultSectionSize(24);
-    scanResultView->horizontalHeader()->setStretchLastSection(false);
-    scanResultView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Interactive);
-    scanResultView->setColumnWidth(0, 150);
-    scanResultView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Interactive);
-    scanResultView->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    scanResultView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    scanResultView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    tabLayout->addWidget(scanResultView, 1);
-
-    // 初始填充："全部模块"
-    m_scanModuleFilter->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
+    // ── 配置已有的 comboBox_Scan_Result_Modules ──
+    ui->comboBox_Scan_Result_Modules->clear();
+    ui->comboBox_Scan_Result_Modules->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
 }
 
 void MainWindow::replaceAddressTable()
@@ -147,11 +144,11 @@ void MainWindow::replaceAddressTable()
         addressView->horizontalHeader()->setMinimumSectionSize(40);
         addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColFrozen, QHeaderView::Fixed);
         addressView->setColumnWidth(AddressListModel::ColFrozen, 60);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColDescription, QHeaderView::Stretch);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColDescription, QHeaderView::Interactive);
         addressView->setColumnWidth(AddressListModel::ColDescription, 120);
         addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColAddress, QHeaderView::Stretch);
         addressView->setColumnWidth(AddressListModel::ColAddress, 150);
-        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColValue, QHeaderView::Stretch);
+        addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColValue, QHeaderView::Interactive);
         addressView->setColumnWidth(AddressListModel::ColValue, 150);
         addressView->horizontalHeader()->setSectionResizeMode(AddressListModel::ColType, QHeaderView::Fixed);
         addressView->setColumnWidth(AddressListModel::ColType, 90);
@@ -320,6 +317,8 @@ void MainWindow::connectSignals()
         this, &MainWindow::onFirstScan);
     connect(ui->pushButton_next_find, &QPushButton::clicked,
         this, &MainWindow::onNextScan);
+    connect(ui->pushButton_pre_find, &QPushButton::clicked,
+        this, &MainWindow::onPreFind);
 
     connect(m_scanService, &ScanService::scanCompleted,
         this, &MainWindow::onScanCompleted);
@@ -327,7 +326,7 @@ void MainWindow::connectSignals()
     connect(m_scanService, &ScanService::progressChanged,
         this, &MainWindow::onProgressChanged);
 
-    connect(scanResultView, &QTableView::doubleClicked,
+    connect(ui->tableView_Scan_Result, &QTableView::doubleClicked,
         this, &MainWindow::onDoubleClickScanResult);
 
     connect(addressView, &QTableView::doubleClicked,
@@ -335,6 +334,9 @@ void MainWindow::connectSignals()
 
     connect(ui->pushButton_copy_all_scan_address_to_address_list, &QPushButton::clicked,
         this, &MainWindow::onCopySelectedToAddressList);
+
+    connect(ui->pushButton_add_address, &QPushButton::clicked,
+        this, &MainWindow::onAddAddressManually);
 
     connect(ui->pushButton_delete_all_address, &QPushButton::clicked, this, [this]() {
         addressModel->clear();
@@ -471,10 +473,10 @@ void MainWindow::connectSignals()
     connect(ui->checkBox_contain_approximate_value, &QCheckBox::toggled, this, &MainWindow::refreshUiControls);
 
     // ★ 模块过滤下拉框 → ViewModel 过滤
-    connect(m_scanModuleFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
+    connect(ui->comboBox_Scan_Result_Modules, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int index) {
         if (!m_resultModel) return;
-        uint64_t base = m_scanModuleFilter->itemData(index).value<uint64_t>();
+        uint64_t base = ui->comboBox_Scan_Result_Modules->itemData(index).value<uint64_t>();
         if (base == 0) {
             m_resultModel->clearModuleFilter();
         } else {
@@ -491,6 +493,7 @@ void MainWindow::connectSignals()
     });
 
 }
+
 
 
 // ==================== 打开进程 ====================
@@ -527,21 +530,21 @@ void MainWindow::onOpenProcess()
         moduleBox->addItem(tr("全部模块"));
 
         // ★ 先清空扫描结果模块过滤列表，再重新填充
-        m_scanModuleFilter->blockSignals(true);
-        m_scanModuleFilter->clear();
-        m_scanModuleFilter->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
+        ui->comboBox_Scan_Result_Modules->blockSignals(true);
+        ui->comboBox_Scan_Result_Modules->clear();
+        ui->comboBox_Scan_Result_Modules->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
 
         const auto& modules = ProcessManager::instance().modules();
         for (const auto& mod : modules) {
             moduleBox->addItem(QString::fromStdString(mod.name));
 
             // ★ 扫描结果过滤下拉框：存储 base 地址作为用户数据
-            m_scanModuleFilter->addItem(QString::fromStdString(mod.name),
+            ui->comboBox_Scan_Result_Modules->addItem(QString::fromStdString(mod.name),
                                         QVariant::fromValue(mod.base));
         }
 
-        m_scanModuleFilter->setCurrentIndex(0);
-        m_scanModuleFilter->blockSignals(false);
+        ui->comboBox_Scan_Result_Modules->setCurrentIndex(0);
+        ui->comboBox_Scan_Result_Modules->blockSignals(false);
 
         // ★ 清除 ViewModel 的模块过滤，显示所有结果
         m_resultModel->clearModuleFilter();
@@ -937,6 +940,23 @@ void MainWindow::onNextScan()
     ui->pushButton_next_find->setEnabled(false);
 }
 
+// ==================== "上一次扫描" ====================
+void MainWindow::onPreFind()
+{
+    if (!m_scanService) return;
+    if (m_scanService->isScanning()) return;
+
+    // 恢复上一次扫描结果（swap 交换当前结果与快照）
+    if (m_scanService->restorePreviousResults()) {
+        m_isFirstScan = false;
+        refreshUiControls();
+        updateCountLabels();
+        statusBar()->showMessage(tr("已恢复上一次扫描结果"), 3000);
+    } else {
+        statusBar()->showMessage(tr("没有上一次扫描结果"), 2000);
+    }
+}
+
 void MainWindow::updateScanTypeComboBox()
 {
     ui->comboBox_atribute_For_Find->blockSignals(true);
@@ -1022,11 +1042,11 @@ void MainWindow::onScanCompleted()
             }
         }
         // 同步下拉框选中项
-        int filterIdx = m_scanModuleFilter->findText(selectedModule);
+        int filterIdx = ui->comboBox_Scan_Result_Modules->findText(selectedModule);
         if (filterIdx >= 0) {
-            m_scanModuleFilter->blockSignals(true);
-            m_scanModuleFilter->setCurrentIndex(filterIdx);
-            m_scanModuleFilter->blockSignals(false);
+            ui->comboBox_Scan_Result_Modules->blockSignals(true);
+            ui->comboBox_Scan_Result_Modules->setCurrentIndex(filterIdx);
+            ui->comboBox_Scan_Result_Modules->blockSignals(false);
         }
     }
 
@@ -1062,7 +1082,7 @@ void MainWindow::addSelectedScanRowsToAddressList()
 {
     if (!ProcessManager::instance().memory()) return;
 
-    auto selModel = scanResultView->selectionModel();
+    auto selModel = ui->tableView_Scan_Result->selectionModel();
     if (!selModel || !selModel->hasSelection()) return;
 
     // 获取所有选中行的索引（QModelIndexList）
@@ -1111,71 +1131,53 @@ void MainWindow::onDoubleClickAddressList(const QModelIndex& index)
     if (!index.isValid() || !addressModel) return;
 
     int col = index.column();
-    // Type 列已经有下拉框委托进行行内编辑，不需要弹框
-    // Description 列已经有行内编辑
-    // Frozen 列有复选框
-    // Value 列已经有行内编辑
-    // DisplayMode 列已经有 CheckBox/ComboBox 委托
-    // Length 列已经有行内编辑（字符串/字节数组）
-    // 只有 Address 列才弹出详细编辑对话框
-    if (col != AddressListModel::ColAddress) return;
-
     int row = index.row();
+    if (col != AddressListModel::ColAddress) return;
     if (row < 0 || row >= addressModel->items().size()) return;
 
     const auto& item = addressModel->items()[row];
 
-    QString addrStr = QString("0x%1").arg(item.address, 16, 16, QChar('0'));
+    // 使用 Add_Or_Change_Address_Dialog 编辑
+    Add_Or_Change_Address_Dialog dlg(this,
+        Add_Or_Change_Address_Dialog::Mode::Edit,
+        item.address,
+        item.description,
+        item.type);
 
-    // 构造类型字符串
-    QString typeStr;
-    switch (item.type) {
-    case ValueType::Int8:      typeStr = "Byte"; break;
-    case ValueType::Int16:     typeStr = "2 Bytes"; break;
-    case ValueType::Int32:     typeStr = "4 Bytes"; break;
-    case ValueType::Int64:     typeStr = "8 Bytes"; break;
-    case ValueType::Float:     typeStr = "Float"; break;
-    case ValueType::Double:    typeStr = "Double"; break;
-    case ValueType::String:    typeStr = "String"; break;
-    case ValueType::ByteArray: typeStr = "Byte Array"; break;
-    default:                   typeStr = "Int"; break;
-    }
+    // 预填 Hex/Signed 显示模式
+    dlg.hexDisplay();   // 访问默认值
 
-    // 构造显示模式字符串
-    QString displayModeStr;
-    if (isNumericType(item.type)) {
-        QStringList parts;
-        if (item.hexDisplay) parts << "Hex";
-        if (item.signedDisplay && isIntegerType(item.type)) parts << "Signed";
-        displayModeStr = parts.isEmpty() ? "Dec" : parts.join("|");
-    } else if (isStringValueType(item.type)) {
-        switch (item.encoding) {
-        case StringEncoding::ASCII: displayModeStr = "ASCII"; break;
-        case StringEncoding::UTF8:  displayModeStr = "UTF-8"; break;
-        case StringEncoding::UTF16: displayModeStr = "UTF-16"; break;
+    if (dlg.exec() == QDialog::Accepted) {
+        // 更新地址列表中的条目
+        auto& mutableItem = addressModel->items()[row];
+        mutableItem.address = dlg.address();
+        mutableItem.description = dlg.description();
+        mutableItem.type = dlg.valueType();
+        mutableItem.hexDisplay = dlg.hexDisplay();
+        mutableItem.signedDisplay = dlg.signedDisplay();
+
+        // 字符串类型：读取编码和长度
+        if (isStringValueType(mutableItem.type)) {
+            mutableItem.encoding = dlg.encoding();
+            int len = dlg.stringLength();
+            mutableItem.stringLength = len;
+            mutableItem.buffer.resize(len);
+            auto mem = ProcessManager::instance().memory();
+            if (mem)
+                mem->read(mutableItem.address, mutableItem.buffer.data(), len);
         }
-    } else if (isByteArrayValueType(item.type)) {
-        displayModeStr = item.hexDisplay ? "Hex" : "Raw";
+
+        // 从内存重读值
+        auto mem = ProcessManager::instance().memory();
+        if (mem) {
+            if (isStringValueType(mutableItem.type) || isByteArrayValueType(mutableItem.type)) {
+                mutableItem.buffer.resize(mutableItem.stringLength > 0 ? mutableItem.stringLength : 32);
+                mem->read(mutableItem.address, mutableItem.buffer.data(), mutableItem.buffer.size());
+            } else {
+                mem->read(mutableItem.address, &mutableItem.rawValue, valueTypeSize(mutableItem.type));
+            }
+        }
     }
-
-    // 构造长度信息
-    QString lengthStr;
-    if (isNumericType(item.type)) {
-        lengthStr = QString::number(valueTypeSize(item.type)) + " bytes";
-    } else if (isStringValueType(item.type) || isByteArrayValueType(item.type)) {
-        int len = item.stringLength > 0 ? item.stringLength : static_cast<int>(item.buffer.size());
-        lengthStr = QString::number(len) + " bytes";
-    }
-
-    QString msg = tr("地址: %1\n描述: %2\n当前值: %3\n类型: %4\n显示模式: %5\n长度: %6\n\n提示: 所有列均支持单击行内编辑")
-                      .arg(addrStr)
-                      .arg(item.description)
-                      .arg(item.formattedValue())
-                      .arg(typeStr)
-                      .arg(displayModeStr)
-                      .arg(lengthStr);
-
-    QMessageBox::information(this, tr("地址详情"), msg);
 }
 
 // ==================== 进程退出与重置 ====================
@@ -1200,11 +1202,11 @@ void MainWindow::resetToNoProcess()
     ui->comboBox_process_module_List->addItem(tr("全部模块"));
 
     // ★ 清除扫描结果模块过滤列表
-    m_scanModuleFilter->blockSignals(true);
-    m_scanModuleFilter->clear();
-    m_scanModuleFilter->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
-    m_scanModuleFilter->blockSignals(false);
-    m_scanModuleFilter->setCurrentIndex(0);
+    ui->comboBox_Scan_Result_Modules->blockSignals(true);
+    ui->comboBox_Scan_Result_Modules->clear();
+    ui->comboBox_Scan_Result_Modules->addItem(tr("全部模块"), QVariant::fromValue(0ULL));
+    ui->comboBox_Scan_Result_Modules->blockSignals(false);
+    ui->comboBox_Scan_Result_Modules->setCurrentIndex(0);
     m_resultModel->clearModuleFilter();
 
     refreshUiControls();
@@ -1414,6 +1416,9 @@ UiContext MainWindow::computeUiContext() const
     ctx.newScanButtonEnabled = ctx.hasProcess;
     ctx.nextScanButtonEnabled = ctx.hasProcess && !ctx.isFirstScan;
 
+    // "上一次扫描"按钮：只有当服务中有之前保存的快照时才启用
+    ctx.preFindButtonEnabled = ctx.hasProcess && m_scanService && m_scanService->hasPreviousResults();
+
     // 动态按钮文字
     if (ctx.isFirstScan) {
         ctx.newScanText = tr("首次扫描");
@@ -1460,6 +1465,7 @@ void MainWindow::refreshUiControls()
     ui->checkBox_copy_on_write->setEnabled(ctx.comboModuleEnabled);
     ui->pushButton_new_find->setEnabled(ctx.newScanButtonEnabled);
     ui->pushButton_next_find->setEnabled(ctx.nextScanButtonEnabled);
+    ui->pushButton_pre_find->setEnabled(ctx.preFindButtonEnabled);
     ui->pushButton_new_find->setText(ctx.newScanText);
     ui->pushButton_next_find->setText(ctx.nextScanText);
 
@@ -1711,7 +1717,7 @@ void MainWindow::onAboutDonate()
     Ui::Dialog aboutUi;
     aboutUi.setupUi(&dlg);
     dlg.setWindowTitle(tr("软件捐赠 / 关于"));
-    dlg.resize(350, 400);
+    // dlg.resize(350, 400);
 
     // ★ 加载 Deemo_Yuan 图片到 QLabel（scaledContents=true，自动按比例缩放填满）
     QPixmap deemoPixmap(":/Deemo_Yuan.JPG");
@@ -1792,17 +1798,80 @@ void MainWindow::onAboutDonate()
     dlg.exec();
 }
 
+void MainWindow::onAddAddressManually()
+{
+    Add_Or_Change_Address_Dialog dlg(this,
+        Add_Or_Change_Address_Dialog::Mode::Add,
+        0, "", ValueType::Int32);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        uint64_t addr = dlg.address();
+        if (addr == 0) return;
+
+        ValueType vt = dlg.valueType();
+        QString desc = dlg.description();
+        if (desc.isEmpty())
+            desc = QString("0x%1").arg(addr, 16, 16, QChar('0'));
+
+        // 从内存读取当前值
+        auto mem = ProcessManager::instance().memory();
+        uint64_t rawValue = 0;
+
+        if (isStringValueType(vt)) {
+            // 字符串类型
+            int len = dlg.stringLength();
+            std::vector<uint8_t> buf(len);
+            if (mem)
+                mem->read(addr, buf.data(), len);
+            addressModel->addItem(addr, desc, 0, vt);
+            // 设置字符串属性
+            auto& newItem = addressModel->items().back();
+            newItem.encoding = dlg.encoding();
+            newItem.stringLength = len;
+            newItem.buffer = std::move(buf);
+            newItem.hexDisplay = dlg.hexDisplay();
+            newItem.signedDisplay = dlg.signedDisplay();
+        } else if (isByteArrayValueType(vt)) {
+            // 字节数组类型
+            int len = dlg.stringLength();
+            std::vector<uint8_t> buf(len);
+            if (mem)
+                mem->read(addr, buf.data(), len);
+            addressModel->addItem(addr, desc, 0, vt);
+            auto& newItem = addressModel->items().back();
+            newItem.stringLength = len;
+            newItem.buffer = std::move(buf);
+            newItem.hexDisplay = dlg.hexDisplay();
+        } else {
+            // 数值类型
+            if (mem)
+                mem->read(addr, &rawValue, valueTypeSize(vt));
+            addressModel->addItem(addr, desc, rawValue, vt);
+            auto& newItem = addressModel->items().back();
+            newItem.hexDisplay = dlg.hexDisplay();
+            newItem.signedDisplay = dlg.signedDisplay();
+        }
+    }
+}
+
 void MainWindow::onLanguageChanged(int index)
 {
+    m_currentLanguageIndex = index;
+
     if (index == 0) {
         TranslatorManager::instance().removeTranslation();
     }
     else if (index == 1) {
         if (!TranslatorManager::instance().loadTranslation("en")) {
             QMessageBox::warning(this, tr("错误"), tr("无法加载英文翻译文件！"));
-            ui->comboBox_language->blockSignals(true);
-            ui->comboBox_language->setCurrentIndex(0);
-            ui->comboBox_language->blockSignals(false);
+            m_currentLanguageIndex = 0;
+            // 还原菜单选中状态
+            for (auto* act : m_langActionGroup->actions()) {
+                if (act->data().toInt() == 0) {
+                    act->setChecked(true);
+                    break;
+                }
+            }
             return;
         }
     }
@@ -1810,21 +1879,16 @@ void MainWindow::onLanguageChanged(int index)
     // 刷新 UI 文本（适用于 .ui 设计器生成的界面）
     ui->retranslateUi(this);
 
-    // 重新设置代码中动态设置的文本（如 scan type combo 等已在代码中 setText 的部分）
+    // 重新设置代码中动态设置的文本
     refreshDynamicTexts();
 }
 
 void MainWindow::refreshDynamicTexts()
 {
-    int langIdx = ui->comboBox_language->currentIndex();
-    initLanguageCombobox(langIdx);
-
     initDataTypeComboBox();
 
-    
     updateScanTypeComboBox(); // 该函数内部会重新添加项目，使用的是 tr()，会自动翻译
     updateCountLabels();      // 更新 "Found: ... Shown: ..."
-    //refreshUiControls();      // 如果其中有 setText 也要保证使用 tr()
     // 窗口标题等
     if (m_attachedToProcess)
         setWindowTitle(tr("Cheat Engine - %1").arg(ui->label_Process_name->text()));

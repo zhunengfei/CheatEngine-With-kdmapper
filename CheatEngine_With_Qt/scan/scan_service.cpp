@@ -29,6 +29,11 @@ ScanService::~ScanService() = default;
 void ScanService::startScan(const ScanRequest& request) {
 	if (m_scanning.exchange(true)) return;
 
+	// ★ 在启动新扫描前，保存当前结果作为"上一次扫描"快照
+	if (m_repository && m_repository->getResultCount() > 0) {
+		m_repository->saveAsPreviousResults();
+	}
+
 	stopAutoRefresh();
 	m_cancelling = false;
 
@@ -134,6 +139,9 @@ void ScanService::clear()
 	// 2. 清理核心仓库
 	m_repository->clear();
 
+	// 3. 同时清除上一次扫描快照
+	m_repository->clearPreviousResults();
+
 	// 3. 清理快照管理器（物理文件清理的核心）
 	if (m_processSnapshotManager) {
 		m_processSnapshotManager->clear();
@@ -170,4 +178,27 @@ void ScanService::onScanFinished(ScanEngine::ScanReport pack, ScanMode mode) {
 	m_viewModel->onRepositoryReplaced();
 	m_scanning = false;
 	emit scanCompleted();
+}
+
+// ===== "上一次扫描" 快照 =====
+
+bool ScanService::hasPreviousResults() const
+{
+	return m_repository && m_repository->hasPreviousResults();
+}
+
+bool ScanService::restorePreviousResults()
+{
+	if (!m_repository) return false;
+	if (!m_repository->swapWithPrevious()) return false;
+
+	// 清除快照管理器—恢复上一次扫描不需要匹配快照
+	// 通知 ViewModel 刷新
+	m_viewModel->onRepositoryReplaced();
+
+	// 恢复后停用自动刷新并发出扫描完成信号，让 UI 更新状态
+	stopAutoRefresh();
+	emit scanCompleted();
+
+	return true;
 }

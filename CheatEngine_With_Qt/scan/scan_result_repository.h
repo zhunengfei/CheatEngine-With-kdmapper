@@ -4,7 +4,6 @@
 #include <atomic>
 #include <mutex>
 
-
 struct ScanMetadata {
 	int scannedRegions = 0;          // 扫描的内存区域数量
 	int scannedAddresses = 0;        // 扫描的地址总数（对齐后）
@@ -15,6 +14,11 @@ struct ScanMetadata {
 	bool isFirstUnknownScan = false; // 是否为“首次-未知初始值”扫描
 	bool isCompleted = false;        // 扫描是否正常完成
 	// 可以加入时间戳、进程ID等其他信息
+};
+
+/// 保存上一次扫描的结果快照
+struct PreviousScanSnapshot {
+	std::vector<ScanResult> results;
 };
 
 class ScanResultRepository {
@@ -41,11 +45,30 @@ public:
 	const ScanMetadata& getScanMetadata() const;
 	void clearScanMetadata();
 
+	// ===== "上一次扫描" 结果快照 =====
+
+	/// 将当前结果保存为"上一次扫描"快照，并清空当前结果
+	void saveAsPreviousResults();
+
+	/// 是否有"上一次扫描"快照
+	bool hasPreviousResults() const;
+
+	/// 交换当前结果与"上一次扫描"快照（即恢复/撤销）
+	/// 返回 true 表示快照非空且操作成功
+	bool swapWithPrevious();
+
+	/// 清除上一次扫描快照
+	void clearPreviousResults();
+
 private:
 
 	std::vector<ScanResult> m_result_data;
 	mutable std::mutex m_mutex;
 	std::atomic<int> m_generation{ 0 };
 
-	ScanMetadata m_metadata; // 也需要用 mutex 保护，或与 m_data 同步更新
+	ScanMetadata m_metadata;
+
+	// "上一次扫描" 快照
+	PreviousScanSnapshot m_previousScanResultSnapshot;
+	mutable std::mutex m_prevMutex;
 };
